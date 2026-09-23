@@ -1,10 +1,16 @@
 name: Frontend CI
 on:
+  pull_request:
   push:
     paths:
       - 'app/static/src/**'
+      - 'app/static/style*.css'
       - 'tsconfig.json'
       - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/frontend-ci.yml'
+permissions:
+  contents: read
 jobs:
   typecheck:
     runs-on: ubuntu-latest
@@ -12,6 +18,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
+          cache: npm
       - run: npm ci
-      - run: npm run typecheck
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build bundle
+        run: npm run build
+      - name: Verify served entry bundle exists
+        run: test -f app/static/dist/app.js

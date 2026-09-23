@@ -2,13 +2,13 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "ES2020",
-    "lib": ["ES2020","DOM"],
+    "lib": ["ES2020", "DOM"],
     "strict": true,
+    "rootDir": "app/static/src",
     "outDir": "app/static/dist",
     "sourceMap": true,
-    "allowJs": true,
-    "checkJs": false
+    "removeComments": false,
+    "noEmitOnError": true
   },
-  "include": ["app/static/src/**/*.ts"],
-  "exclude": ["app/static/src/app.ts"]
+  "include": ["app/static/src/**/*.ts"]
 }

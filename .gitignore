@@ -7,3 +7,8 @@ data/
 .ruff_cache/
 .env
 
+# Frontend tooling and generated build output
+node_modules/
+app/static/dist/
+*.tsbuildinfo
+

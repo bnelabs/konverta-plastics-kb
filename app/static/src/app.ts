@@ -1,9 +1,11 @@
+// @ts-nocheck -- TypeScript migration in progress (task-1). Behaviour mirrors app/static/app.js.
 const $ = (selector: string): HTMLElement | null => document.querySelector(selector);
 const labels = {
   overview: ['Overview', 'Materials, made useful.', 'A practical field guide to working with recycled plastics.'],
   materials: ['Materials', 'Know your material.', 'Explore common polymers, their uses, and handling notes.'],
   processes: ['Processes', 'From feedstock to form.', 'Compare practical recycling and upcycling methods.'],
   projects: ['Projects', 'Ideas for another life.', 'Browse practical concepts built around recovered materials.'],
+  needs_review: ['Review Queue', 'Factual curation.', 'Materials needing source verification and safety review.'],
 };
 let view = 'overview';
 let searchTimer: number | undefined;
@@ -51,7 +53,10 @@ async function render() {
     const data = await loadData();
     const query = $('#search').value.trim().toLowerCase();
     let html;
-    if (view === 'overview' || view === 'materials') {
+    if (view === 'needs_review') {
+      const matches = data.materials.filter(m => m.review_status !== 'verified');
+      html = `<div class="section-title"><div><h2>Review Queue</h2><p>${matches.length} material${matches.length === 1 ? '' : 's'} needing source verification</p></div></div><div class="material-grid">${matches.map(materialCard).join('') || '<div class="empty">No materials need review.</div>'}</div>`;
+    } else if (view === 'overview' || view === 'materials') {
       const matches = data.materials;
       const shown = view === 'overview' ? matches.slice(0, 6) : matches;
       html = `<div class="section-title"><div><h2>${view === 'overview' ? 'Explore materials' : 'Material directory'}</h2><p>${matches.length} polymer ${matches.length === 1 ? 'profile' : 'profiles'} in the library</p></div><div class="section-actions">${view === 'overview' ? '<a class="text-link" data-goto="materials">View all materials <span aria-hidden="true">→</span></a>' : ''}<button class="text-link add-link" data-add-material><span aria-hidden="true">＋</span> Add material</button></div></div><div class="material-grid">${shown.map(materialCard).join('') || '<div class="empty">No materials match that search.</div>'}</div>`;
@@ -122,6 +127,7 @@ function toast(message) {
 document.querySelectorAll('.nav-item').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view)));
 $('#search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(render, 160); });
 $('#refresh').addEventListener('click', render);
+$('#bulk-import')?.addEventListener('click', () => toast('Bulk import UI coming soon. Use scripts/collect_facts.py for CSV import with source validation.'));
 $('#detail .close').addEventListener('click', () => $('#detail').close());
 $('#editor .close').addEventListener('click', () => $('#editor').close());
 for (const dialog of [$('#detail'), $('#editor')]) dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });

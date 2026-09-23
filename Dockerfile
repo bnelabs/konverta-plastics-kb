@@ -1,9 +1,12 @@
-# Multi-stage build for Python API + TypeScript frontend
-FROM node:20-alpine AS frontend
+# Multi-stage build for Python API + TypeScript frontend.
+# TypeScript 7 ships platform-native binaries, so use the glibc (bookworm) image.
+FROM node:20-bookworm-slim AS frontend
 WORKDIR /app
 COPY app/static/src ./app/static/src
 COPY tsconfig.json ./
-RUN npm install -g typescript && tsc --target ES2020 --module ES2020 --lib ES2020,DOM --outDir app/static/dist --allowJs --noEmitOnError false
+RUN npm install -g typescript@7.0.2 \
+    && tsc --project tsconfig.json \
+    && test -f app/static/dist/app.js
 
 FROM python:3.12-slim-bookworm@sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1

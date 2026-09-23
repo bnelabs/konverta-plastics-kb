@@ -5,7 +5,7 @@
 **Architecture**
 - Single-container FastAPI + FastMCP app in `app/main.py`
 - SQLite on PVC at `KB_DB_PATH` default `/data/plastics-kb.sqlite3`, WAL mode, schema auto-created
-- Static SPA UI in `app/static/` : `index.html`, `style.css`, `app.js`
+- Static SPA UI in `app/static/`: `index.html`, `style-mobile-first.css`; TypeScript source in `app/static/src/app.ts`, built to `app/static/dist/app.js`
 - Read-only MCP tools on port 8001, Streamable HTTP, DNS-rebinding protection
 - REST API `/api/v1/*` with Cloudflare Access JWT gate for public routes
 - Docker slim image, non-root uid 10001, read-only rootfs
