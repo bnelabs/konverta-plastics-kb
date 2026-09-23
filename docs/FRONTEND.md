@@ -12,9 +12,13 @@
 ./scripts/build-frontend.sh          # install deps (if needed) + compile
 npm run typecheck                    # strict type check (CI gate)
 npm run build                        # compile only
+npm run test:frontend                # smoke test the built bundle (CI gate)
 ```
 
 Generated output in `app/static/dist/` is not committed. The container build compiles it and fails fast if `app/static/dist/app.js` is missing (`test -f` in the Dockerfile).
+
+### Why the smoke test exists
+The server polls private releases and deploys automatically, so a bundle that is missing or throws at startup reaches production without a human in the loop. `tests/frontend/smoke.test.js` boots the built bundle in jsdom against a stubbed API and asserts the UI contract: every `/assets/...` reference resolves, the bundle renders materials and stats, review badges reflect `review_status`, the Review Queue hides verified materials, a verified material links its source, and an unverified material says no source is recorded. A release image is only produced after these checks pass.
 
 > Note: environments with `NODE_ENV=production` skip devDependencies. Use `npm ci --include=dev`, which `scripts/build-frontend.sh` already does.
 

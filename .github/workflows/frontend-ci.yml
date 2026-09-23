@@ -4,15 +4,18 @@ on:
   push:
     paths:
       - 'app/static/src/**'
-      - 'app/static/style*.css'
+      - 'app/static/index.html'
+      - 'app/static/*.css'
+      - 'tests/frontend/**'
       - 'tsconfig.json'
       - 'package.json'
       - 'package-lock.json'
+      - 'Dockerfile'
       - '.github/workflows/frontend-ci.yml'
 permissions:
   contents: read
 jobs:
-  typecheck:
+  frontend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,3 +30,7 @@ jobs:
         run: npm run build
       - name: Verify served entry bundle exists
         run: test -f app/static/dist/app.js
+      # Production updates automatically from a release image, so boot the built
+      # bundle here rather than letting a broken UI reach kb.konverta.eu.
+      - name: Smoke test the built bundle
+        run: npm run test:frontend

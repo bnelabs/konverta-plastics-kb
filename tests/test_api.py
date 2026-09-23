@@ -70,6 +70,24 @@ class KnowledgeBaseApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Materials, made useful", response.text)
 
+    def test_frontend_asset_references_resolve(self):
+        """Static assets must exist; the generated bundle is verified by the image build."""
+        import re
+
+        from app.main import STATIC_DIR
+
+        html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        refs = re.findall(r'(?:src|href)="(/assets/[^"]+)"', html)
+        self.assertTrue(refs, "index.html should reference at least one local asset")
+
+        generated = [ref for ref in refs if ref.startswith("/assets/dist/")]
+        for ref in (r for r in refs if not r.startswith("/assets/dist/")):
+            target = STATIC_DIR / ref.removeprefix("/assets/")
+            self.assertTrue(target.is_file(), f"missing asset {ref}")
+
+        # The page must load exactly the entry bundle the Dockerfile compiles.
+        self.assertEqual(generated, ["/assets/dist/app.js"])
+
 
 if __name__ == "__main__":
     unittest.main()
