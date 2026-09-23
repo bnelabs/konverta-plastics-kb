@@ -122,6 +122,7 @@ function toast(message) {
 document.querySelectorAll('.nav-item').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view)));
 $('#search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(render, 160); });
 $('#refresh').addEventListener('click', render);
+$('#bulk-import')?.addEventListener('click', () => toast('Bulk import UI coming soon. Use scripts/collect_facts.py for CSV import with source validation.'));
 $('#detail .close').addEventListener('click', () => $('#detail').close());
 $('#editor .close').addEventListener('click', () => $('#editor').close());
 for (const dialog of [$('#detail'), $('#editor')]) dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
