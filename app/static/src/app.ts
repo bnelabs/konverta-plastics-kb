@@ -1,5 +1,4 @@
-// @ts-nocheck
-const $ = (selector) => document.querySelector(selector);
+const $ = (selector: string): HTMLElement | null => document.querySelector(selector);
 const labels = {
   overview: ['Overview', 'Materials, made useful.', 'A practical field guide to working with recycled plastics.'],
   materials: ['Materials', 'Know your material.', 'Explore common polymers, their uses, and handling notes.'],
@@ -7,9 +6,9 @@ const labels = {
   projects: ['Projects', 'Ideas for another life.', 'Browse practical concepts built around recovered materials.'],
 };
 let view = 'overview';
-let searchTimer;
+let searchTimer: number | undefined;
 
-async function get(path) {
+async function get(path: string) {
   const response = await fetch(path);
   if (!response.ok) throw new Error(`Request failed (${response.status})`);
   return response.json();
@@ -21,7 +20,7 @@ function esc(value = '') {
   })[character]);
 }
 
-function setView(next) {
+function setView(next: string) {
   view = next;
   document.querySelectorAll('.nav-item').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
   $('#breadcrumb').textContent = labels[view][0];
