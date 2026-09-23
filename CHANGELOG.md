@@ -1,12 +1,23 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.0] - 2026-09-23
 
 ### Added
-- `tests/frontend/smoke.test.js` boots the built bundle in jsdom against a stubbed API and asserts the UI contract. Frontend CI runs it after the bundle build, and the release workflow now builds and smoke tests the bundle before `docker build`, so a missing or crashing bundle cannot reach a release image.
+- `POST /api/v1/materials/bulk` imports CSV or JSON material rows with per-row validation. Only rows carrying a source title and an `https://` source URL are inserted; invalid and duplicate rows are reported, and each batch writes one `kb_events` audit row. Limits: 10 000 rows / 5 MB.
+- `app/curation.py` holds one standard-library-only rule set shared by the API and `scripts/collect_facts.py`, so the two entry points cannot drift apart.
+- Dialog focus trap and focus restore, `aria-current` on the active nav item, the detail dialog labelled by the rendered material name, and keyboard-operable project cards (`role="button"`, `Enter`/`Space`).
+- `docs/RELEASE.md` documents the git → release → host-poll → kubectl chain, rollback and the running-version check.
+- Tests for the `needs_review` queue and the materials contract, plus `tests/test_curation.py` for bulk import.
+- `tests/frontend/smoke.test.js` boots the built bundle in jsdom against a stubbed API and asserts the UI contract. Frontend CI runs it after the bundle build, and the release workflow builds and smoke tests the bundle before `docker build`, so a missing or crashing bundle cannot reach a release image.
+
+### Changed
+- `app/static/src/app.ts` is fully typed and the `@ts-nocheck` suppression is gone; frontend CI fails if `ts-nocheck`/`ts-ignore`/`ts-expect-error` reappears.
+- `style-mobile-first.css` is the self-sufficient primary sheet; `mobile.css` is reduced to a small enhancement layer and the legacy `style.css` remains only as a fallback.
+- Accessibility: skip link, labelled landmarks and icon buttons, AA contrast tokens, visible focus rings, skeleton and error states, and reduced-motion support.
 
 ### Fixed
 - Pin the smoke-test dependency to `jsdom` 26.1.0 and declare `engines.node >=20.19`. jsdom 30 requires Node `^22.22.2`, so its `undici` dependency failed on the Node 20 runners with `webidl.util.markAsUncloneable is not a function`; the image build stage still uses Node 20.
+- The curation suite no longer re-runs the app lifespan, which raised `RuntimeError: StreamableHTTPSessionManager .run() can only be called once per instance` because the MCP session manager is a once-per-process singleton already owned by `tests/test_api.py`.
 
 ## [0.2.1] - 2026-09-23
 
