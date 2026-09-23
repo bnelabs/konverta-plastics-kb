@@ -76,7 +76,9 @@ async function render() {
 function materialCard(material) {
   const needsReview = material.review_status !== 'verified';
   const risk = String(material.toxicity_level || 'Not rated').toLowerCase();
-  return `<button class="material-card" type="button" data-code="${esc(material.code)}"><div class="card-head"><span class="code-pill">${esc(material.code)}</span><span class="risk ${risk === 'high' ? 'high' : ''}">${esc(material.toxicity_level || 'Not rated')} handling</span></div><h3>${esc(material.name)}</h3><p>${esc(material.common_uses || 'No common uses recorded')}</p><div class="card-foot"><span>${needsReview ? 'Prototype data · verify' : 'Source checked'}</span><span>Melting range <b>${esc(material.melt_temp_c || 'Not recorded')}</b></span></div></button>`;
+  const reviewClass = needsReview ? 'review-badge draft' : 'review-badge verified';
+  const reviewText = needsReview ? 'Prototype data · verify' : 'Source checked';
+  return `<button class="material-card" type="button" data-code="${esc(material.code)}"><div class="card-head"><span class="code-pill">${esc(material.code)}</span><span class="risk ${risk === 'high' ? 'high' : ''}">${esc(material.toxicity_level || 'Not rated')} handling</span></div><h3>${esc(material.name)}</h3><p>${esc(material.common_uses || 'No common uses recorded')}</p><div class="card-foot"><span class="${reviewClass}">${reviewText}</span><span>Melting range <b>${esc(material.melt_temp_c || 'Not recorded')}</b></span></div></button>`;
 }
 
 async function showMaterial(code) {
@@ -130,6 +132,18 @@ $('#material-form').addEventListener('submit', async (event) => {
   const originalCode = values.original_code;
   delete values.original_code;
   values.density_g_cm3 = values.density_g_cm3 ? Number(values.density_g_cm3) : null;
+  if (!values.source_title || values.source_title.trim().length < 2) {
+    toast('Source title is required for factual records');
+    return;
+  }
+  if (!values.source_url || !values.source_url.trim().startsWith('https://')) {
+    toast('Source URL must start with https://');
+    return;
+  }
+  if (!values.review_status || !['draft','verified'].includes(values.review_status)) {
+    toast('Review status must be draft or verified');
+    return;
+  }
   try {
     const response = await fetch(originalCode ? `/api/v1/materials/${encodeURIComponent(originalCode)}` : '/api/v1/materials', {
       method: originalCode ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values),

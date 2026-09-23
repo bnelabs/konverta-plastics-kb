@@ -1,0 +1,123 @@
+/* Mobile-first base stylesheet for Konverta Plastics KB
+   This file will progressively replace the desktop-first style.css.
+   Base styles target mobile first, with min-width media queries for larger screens.
+*/
+
+:root{
+  --ink:#1f3029;
+  --muted:#79847d;
+  --line:#e8ebe5;
+  --paper:#f6f7f4;
+  --card:#fff;
+  --green:#126b50;
+  --green2:#e6f1eb;
+  --lime:#d4e8a4;
+  --orange:#f2c987;
+  --shadow:0 14px 42px #1e35210c;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:'DM Sans',sans-serif;
+  font-size:14px;
+  line-height:1.5;
+}
+
+/* Mobile base layout */
+.shell{display:block}
+.sidebar{
+  position:fixed;
+  bottom:0;left:0;right:0;
+  height:auto;
+  border-top:1px solid var(--line);
+  background:#fff;
+  padding:6px 12px 10px;
+  z-index:100;
+}
+.sidebar nav{display:flex;justify-content:space-around}
+.nav-item{height:48px; padding:0 12px; font-weight:600}
+.main{padding:0 16px 84px}
+
+/* Topbar and search */
+.topbar{height:56px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+.search-row{margin:16px 0}
+.searchbox{height:48px;border:1px solid var(--line);border-radius:10px;display:flex;align-items:center;padding:0 12px;background:#fff}
+.searchbox input{border:0;outline:0;background:transparent;width:100%}
+
+/* Stats */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:11px;padding:12px}
+.stat-value{font:700 20px 'Manrope',sans-serif}
+.stat-note{font-size:10px;color:var(--muted)}
+
+/* Typography */
+h1,h2,h3{font-family:'Manrope',sans-serif; margin:0 0 .5rem}
+
+/* Cards */
+.material-grid,.process-grid,.project-grid{display:grid;grid-template-columns:1fr;gap:12px}
+.material-card,.process-card,.project-card{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:16px;
+  margin-bottom:12px;
+  width:100%;
+  text-align:left;
+  cursor:pointer;
+  transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  box-shadow:0 2px 10px rgba(30,53,33,0.04);
+}
+.material-card:hover,.process-card:hover,.project-card:hover{
+  transform:translateY(-2px);
+  border-color:#afcdbb;
+  box-shadow:0 8px 24px rgba(30,53,33,0.08);
+}
+.card-head{display:flex;justify-content:space-between;align-items:flex-start}
+.code-pill{background:#e7f1e9;color:#286c50;padding:4px 8px;border-radius:6px;font-weight:700;font-size:11px}
+.risk{font-size:9px;font-weight:700;text-transform:uppercase;padding:4px 6px;border-radius:5px;background:#eff4ed}
+.risk.high{background:#f9ebe6;color:#a24d3d}
+.card-foot{display:flex;justify-content:space-between;font-size:10px;color:#8a958c;margin-top:10px;border-top:1px solid #f0f2ee;padding-top:8px}
+
+/* Dialogs */
+.detail-dialog,.editor-dialog{
+  border:0;border-radius:16px;width:min(680px,calc(100% - 24px));max-height:90vh;padding:0;background:#fff;
+  transition:opacity .2s ease, transform .2s ease;
+}
+.detail-dialog::backdrop,.editor-dialog::backdrop{
+  background:rgba(27,46,37,0.5);
+  backdrop-filter:blur(4px);
+  transition:background .2s ease;
+}
+.detail-inner{padding:20px}
+.close{position:absolute;top:12px;right:12px;border:0;background:#f2f5f1;border-radius:50%;width:36px;height:36px;font-size:20px;transition:background .15s ease, transform .15s ease}
+.close:hover{background:#e6efe7;transform:scale(1.05)}
+
+/* Nav transitions */
+.nav-item{
+  transition:background .15s ease, color .15s ease, transform .12s ease;
+}
+.nav-item.active{background:var(--green2);color:var(--green)}
+.nav-item:hover{background:#f6f8f5}
+
+/* Forms */
+.form-grid{display:grid;grid-template-columns:1fr;gap:12px}
+input,textarea,select{
+  width:100%;padding:12px;border:1px solid var(--line);border-radius:8px;font-size:16px;
+}
+
+/* Tablet and up */
+@media (min-width:701px){
+  .shell{display:grid;grid-template-columns:240px minmax(0,1fr)}
+  .sidebar{position:sticky;top:0;height:100vh;border-top:0;border-right:1px solid var(--line)}
+  .main{padding:0 32px}
+  .form-grid{grid-template-columns:1fr 1fr}
+}
+
+/* Desktop */
+@media (min-width:1051px){
+  .main{max-width:1440px;margin:0 auto}
+  .material-grid{grid-template-columns:repeat(3,1fr)}
+}
