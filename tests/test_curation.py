@@ -55,13 +55,16 @@ def csv_document(*rows):
 class MaterialBulkImportTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        # app.main's lifespan starts the MCP StreamableHTTPSessionManager, which may
+        # only run once per process. tests/test_api.py already owns that lifecycle,
+        # so prepare the schema directly and use the client without entering the
+        # lifespan a second time.
         ensure_schema()
         cls.client = TestClient(app)
-        cls.client.__enter__()
 
     @classmethod
     def tearDownClass(cls):
-        cls.client.__exit__(None, None, None)
+        cls.client.close()
 
     def setUp(self):
         self._purge_test_rows()
