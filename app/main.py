@@ -283,6 +283,13 @@ def materials(q: str = Query(default="", max_length=120), limit: int = Query(def
     return search_materials(q, limit)
 
 
+@app.get("/api/v1/materials/needs_review")
+def materials_needs_review(limit: int = Query(default=50, ge=1, le=100)) -> list[dict[str, Any]]:
+    with connect() as con:
+        rows = con.execute("SELECT * FROM materials WHERE review_status != 'verified' ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+
 @app.post("/api/v1/materials", status_code=201)
 def create_material(payload: MaterialInput) -> dict[str, Any]:
     values = payload.model_dump()
