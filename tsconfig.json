@@ -9,5 +9,6 @@
     "allowJs": true,
     "checkJs": false
   },
-  "include": ["app/static/src/**/*.ts"]
+  "include": ["app/static/src/**/*.ts"],
+  "exclude": ["app/static/src/app.ts"]
 }
