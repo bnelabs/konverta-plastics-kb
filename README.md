@@ -8,10 +8,10 @@ Small, single-container knowledge library for recycled polymers. The API and web
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt pytest
 KB_DB_PATH=./data/dev.sqlite3 pytest
-KB_DB_PATH=./data/dev.sqlite3 uvicorn app.main:app --reload
+APP_ENV=development ALLOW_UNAUTHENTICATED_DEV=1 KB_DB_PATH=./data/dev.sqlite3 uvicorn app.main:app --reload
 ```
 
-The app initializes a new database from `seed/legacy-seed.sqlite3` only when it is empty. Runtime data is never part of the container image or Git history. Set `KB_DB_PATH` to a writable path to use another database.
+The local-only `ALLOW_UNAUTHENTICATED_DEV=1` switch is honored only when `APP_ENV=development`; the default is production mode, which returns `503` for protected routes if Cloudflare Access is not configured. The app initializes a new database from `seed/legacy-seed.sqlite3` only when it is empty. Runtime data is never part of the container image or Git history. Set `KB_DB_PATH` to a writable path to use another database.
 
 ## HTTP and MCP
 
@@ -35,6 +35,6 @@ Use SemVer tags (`vMAJOR.MINOR.PATCH`). GitHub Actions runs tests and builds the
 
 SQLite is suitable for the current small, single-writer library. Do not mount this database into DSH; use the API/MCP service. A host systemd timer runs SQLite's online backup API daily, copies the snapshot to `/srv/backups/plastics-kb`, verifies `PRAGMA integrity_check`, and retains 35 days. Include a restore drill before relying on the KB as the only copy of important research.
 
-The DSH MCP client is configured for read-only KB lookup. DSH can also edit the private Git repository through its workspace clone at `/home/dsh/workspace/konverta-plastics-kb`; create a feature branch and push it to `origin`. DSH's repository-scoped deploy key is stored in the `deepseek-harness` namespace, separate from the KB application and database. The additional Git/SSH runtime layer is defined in `deploy/Dockerfile.dsh-git-access`; the live image adds only Git and OpenSSH to the existing DSH image. The Kubernetes JSON patch for mounting the key and clone setup is in `deploy/dsh-git-access-patch.json`. Review and merge changes through a pull request, then create a SemVer tag to release.
+The DSH MCP client is configured for read-only KB lookup. DSH can also edit the Git repository through its workspace clone at `/home/dsh/workspace/konverta-plastics-kb`; create a feature branch and push it to `origin`. In the DSH Web UI, choose **Choose workspace → Add workspace**, enter this server-side path, and select it. On a public repository, a push to `dsh/*` opens a pull request and enables auto-merge; GitHub merges after the required CI check passes. DSH's repository-scoped deploy key is stored in the `deepseek-harness` namespace, separate from the KB application and database. The additional Git/SSH runtime layer is defined in `deploy/Dockerfile.dsh-git-access`; the live image adds only Git and OpenSSH to the existing DSH image. The Kubernetes JSON patch for mounting the key and clone setup is in `deploy/dsh-git-access-patch.json`. Create a SemVer tag on a commit already in `main` to release.
 
 The initial dataset is migrated from the prototype workspace. Add source records and licensing before expanding or publishing technical claims.

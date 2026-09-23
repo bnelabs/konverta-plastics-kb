@@ -7,8 +7,11 @@ from fastapi.testclient import TestClient
 
 tmp = tempfile.TemporaryDirectory(prefix="kb-test-")
 os.environ["KB_DB_PATH"] = str(Path(tmp.name) / "test.sqlite3")
+os.environ["APP_ENV"] = "development"
+os.environ["ALLOW_UNAUTHENTICATED_DEV"] = "1"
 
 from app.main import app, ensure_schema  # noqa: E402
+import app.main as kb_main  # noqa: E402
 
 
 class KnowledgeBaseApiTests(unittest.TestCase):
@@ -27,6 +30,16 @@ class KnowledgeBaseApiTests(unittest.TestCase):
         metrics = self.client.get("/api/v1/metrics").json()
         self.assertEqual(metrics["records"]["materials"], 6)
         self.assertEqual(metrics["records"]["projects"], 2)
+
+    def test_missing_access_configuration_fails_closed_outside_dev_mode(self):
+        original = kb_main.allow_unauthenticated_dev
+        try:
+            kb_main.allow_unauthenticated_dev = False
+            response = self.client.get("/api/v1/metrics")
+            self.assertEqual(response.status_code, 503)
+            self.assertEqual(response.json()["detail"], "Cloudflare Access is not configured")
+        finally:
+            kb_main.allow_unauthenticated_dev = original
 
     def test_material_search_and_detail(self):
         results = self.client.get("/api/v1/materials", params={"q": "milk"})

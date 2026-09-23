@@ -26,6 +26,10 @@ access_team = os.getenv("CF_ACCESS_TEAM_DOMAIN", "").rstrip("/")
 access_aud = os.getenv("CF_ACCESS_AUD", "")
 access_email = os.getenv("CF_ACCESS_EMAIL", "baris@konverta.eu").strip().lower()
 jwks_client = jwt.PyJWKClient(f"{access_team}/cdn-cgi/access/certs", cache_jwk_set=True, lifespan=3600) if access_team else None
+allow_unauthenticated_dev = (
+    os.getenv("APP_ENV", "production").strip().lower() == "development"
+    and os.getenv("ALLOW_UNAUTHENTICATED_DEV", "") == "1"
+)
 
 
 def connect() -> sqlite3.Connection:
@@ -243,9 +247,13 @@ class MaterialInput(BaseModel):
 
 @app.middleware("http")
 async def cloudflare_access_gate(request, call_next):
-    if request.url.path != "/healthz" and access_aud:
+    if request.url.path != "/healthz":
+        if not (access_team and access_aud and access_email and jwks_client):
+            if allow_unauthenticated_dev:
+                return await call_next(request)
+            return JSONResponse(status_code=503, content={"detail": "Cloudflare Access is not configured"})
         token = request.headers.get("cf-access-jwt-assertion")
-        if not token or jwks_client is None:
+        if not token:
             return JSONResponse(status_code=401, content={"detail": "Cloudflare Access authentication required"})
         try:
             signing_key = jwks_client.get_signing_key_from_jwt(token)

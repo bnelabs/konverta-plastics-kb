@@ -8,6 +8,6 @@ This repository is the source for the live KB at `kb.konverta.eu`.
 - Add reliable source title and URL for technical claims. Include safety notes where relevant. Unknown polymer compatibility must remain unknown.
 - Never commit API keys, OAuth files, Cloudflare credentials, SQLite databases, backups, or generated model/build caches.
 - Runtime data is stored in the KB PVC and must not be copied into this repository.
-- Push feature branches to `origin`; GitHub Actions runs tests and a container build for every branch. Have a maintainer review and merge changes through a pull request.
+- Push feature branches named `dsh/<short-topic>` to `origin`; GitHub Actions runs tests and a container build for every branch. On public repositories, GitHub Actions opens a pull request for each `dsh/*` push and enables auto-merge. The `main` ruleset merges it only after the required CI check passes. Do not push directly to `main`.
 - Releases use SemVer tags (`vMAJOR.MINOR.PATCH`) on commits already in `main`. GitHub Actions builds the release image. The server polls private releases every five minutes and deploys the image automatically.
 - Do not create or push release tags unless explicitly asked by the maintainer.
