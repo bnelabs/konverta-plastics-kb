@@ -9,7 +9,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from mcp.server.fastmcp import FastMCP
@@ -17,6 +18,11 @@ from mcp.server.transport_security import TransportSecuritySettings
 import jwt
 import uvicorn
 from pydantic import BaseModel, Field, field_validator
+
+try:  # `python -m app.main` / `uvicorn app.main:app`
+    from app.curation import import_material_rows, parse_csv_rows, parse_json_rows
+except ModuleNotFoundError:  # pragma: no cover - `python app/main.py`
+    from curation import import_material_rows, parse_csv_rows, parse_json_rows
 
 APP_VERSION = os.getenv("APP_VERSION", "0.1.0")
 DB_PATH = Path(os.getenv("KB_DB_PATH", "/data/plastics-kb.sqlite3"))
@@ -288,6 +294,52 @@ def materials_needs_review(limit: int = Query(default=50, ge=1, le=100)) -> list
     with connect() as con:
         rows = con.execute("SELECT * FROM materials WHERE review_status != 'verified' ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
         return [dict(r) for r in rows]
+
+
+BULK_MAX_ROWS = 10000
+BULK_MAX_BYTES = 5_000_000
+
+
+def _store_bulk_rows(rows: list[tuple[int, Any]], source_format: str) -> dict[str, Any]:
+    """Insert a validated batch on a worker thread so the event loop stays free."""
+    con = connect()
+    try:
+        result = import_material_rows(con, rows, source_format=source_format)
+        con.commit()
+    finally:
+        con.close()
+    return result
+
+
+@app.post("/api/v1/materials/bulk")
+async def bulk_materials(request: Request) -> dict[str, Any]:
+    """Import a CSV document or a JSON array of material rows with per-row validation.
+
+    Registered before the /api/v1/materials/{code} routes so the literal path is
+    never shadowed. Valid rows are inserted, invalid or duplicate codes are
+    skipped and reported; a row without a valid source is never inserted.
+    """
+    raw = await request.body()
+    if len(raw) > BULK_MAX_BYTES:
+        raise HTTPException(status_code=413, detail=f"Batch exceeds the {BULK_MAX_BYTES}-byte limit")
+    try:
+        document = raw.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Request body must be UTF-8 encoded") from exc
+    content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    if content_type in ("text/csv", "application/csv"):
+        as_json = False
+    elif content_type in ("application/json", "text/json"):
+        as_json = True
+    else:
+        as_json = document.lstrip()[:1] in ("[", "{")
+    try:
+        rows = parse_json_rows(document) if as_json else parse_csv_rows(document)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if len(rows) > BULK_MAX_ROWS:
+        raise HTTPException(status_code=413, detail=f"Batch exceeds the {BULK_MAX_ROWS}-row limit")
+    return await run_in_threadpool(_store_bulk_rows, rows, "json" if as_json else "csv")
 
 
 @app.post("/api/v1/materials", status_code=201)

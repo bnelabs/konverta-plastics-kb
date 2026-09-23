@@ -8,7 +8,7 @@ Usage:
 The CSV must contain columns:
 code,name,common_uses,melt_temp_c,density_g_cm3,toxicity_level,recyclability,notes,source_title,source_url,review_status
 
-Rules:
+Rules (shared with POST /api/v1/materials/bulk via app/curation.py):
 - code normalized to upper case, alphanumeric/hyphen
 - source_url must start with https://
 - review_status must be draft or verified
@@ -19,14 +19,21 @@ Rules:
 import argparse
 import csv
 import os
-import re
 import sqlite3
 import sys
 from pathlib import Path
 
 DB_PATH = Path(os.getenv("KB_DB_PATH", "/data/plastics-kb.sqlite3"))
 
-CODE_RE = re.compile(r"^[A-Z0-9-]+$")
+# The shared rules live in app/curation.py (standard library only). Importing
+# app.main from here would pull in FastAPI/MCP/uvicorn, so keep the path bootstrap.
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from app.curation import MATERIAL_COLUMNS, material_row_values, validate_material_row  # noqa: E402
+
+INSERT_SQL = f"INSERT INTO materials ({','.join(MATERIAL_COLUMNS)}) VALUES ({','.join('?' for _ in MATERIAL_COLUMNS)})"
 
 def connect():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -34,33 +41,9 @@ def connect():
     con.row_factory = sqlite3.Row
     return con
 
-def validate_row(row, line_no):
-    errors = []
-    code = (row.get("code") or "").strip().upper()
-    if not code or not CODE_RE.match(code):
-        errors.append("code must be alphanumeric/hyphen")
-    name = (row.get("name") or "").strip()
-    if len(name) < 2:
-        errors.append("name too short")
-    source_title = (row.get("source_title") or "").strip()
-    if len(source_title) < 2:
-        errors.append("source_title required")
-    source_url = (row.get("source_url") or "").strip()
-    if not source_url.startswith("https://"):
-        errors.append("source_url must start with https://")
-    review_status = (row.get("review_status") or "draft").strip().lower()
-    if review_status not in ("draft", "verified"):
-        errors.append("review_status must be draft or verified")
-    # density check
-    density = row.get("density_g_cm3")
-    if density:
-        try:
-            d = float(density)
-            if not 0 <= d <= 100:
-                errors.append("density out of range")
-        except ValueError:
-            errors.append("density not numeric")
-    return errors
+def validate_row(row, line_no=None):
+    """Human-readable messages for one CSV row; rules are shared with the API."""
+    return [error["message"] for error in validate_material_row(row)]
 
 def main():
     parser = argparse.ArgumentParser(description="Import factual material records")
@@ -89,23 +72,9 @@ def main():
                 print(f"Line {i} SKIPPED: {'; '.join(errors)}", file=sys.stderr)
                 skipped += 1
                 continue
+            values = material_row_values(row)
             try:
-                con.execute("""
-                    INSERT INTO materials(code,name,common_uses,melt_temp_c,density_g_cm3,toxicity_level,recyclability,notes,source_title,source_url,review_status)
-                    VALUES(?,?,?,?,?,?,?,?,?,?,?)
-                """, (
-                    row["code"].strip().upper(),
-                    row["name"].strip(),
-                    row.get("common_uses",""),
-                    row.get("melt_temp_c",""),
-                    float(row["density_g_cm3"]) if row.get("density_g_cm3") else None,
-                    row.get("toxicity_level","Not rated"),
-                    row.get("recyclability","Not recorded"),
-                    row.get("notes",""),
-                    row["source_title"].strip(),
-                    row["source_url"].strip(),
-                    row["review_status"].strip().lower()
-                ))
+                con.execute(INSERT_SQL, [values[column] for column in MATERIAL_COLUMNS])
                 con.commit()
                 inserted += 1
             except sqlite3.IntegrityError:

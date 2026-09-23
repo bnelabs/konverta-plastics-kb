@@ -24,6 +24,14 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
+      # app.ts is fully typed now; keep it that way instead of silently
+      # disabling checking again.
+      - name: Guard against TypeScript suppressions
+        run: |
+          if grep -rn "ts-nocheck\|ts-ignore\|ts-expect-error" app/static/src; then
+            echo "::error::TypeScript error suppressions are not allowed in app/static/src"
+            exit 1
+          fi
       - name: Typecheck
         run: npm run typecheck
       - name: Build bundle

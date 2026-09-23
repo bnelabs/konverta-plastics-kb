@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `tests/frontend/smoke.test.js` boots the built bundle in jsdom against a stubbed API and asserts the UI contract. Frontend CI runs it after the bundle build, and the release workflow now builds and smoke tests the bundle before `docker build`, so a missing or crashing bundle cannot reach a release image.
+
+### Fixed
+- Pin the smoke-test dependency to `jsdom` 26.1.0 and declare `engines.node >=20.19`. jsdom 30 requires Node `^22.22.2`, so its `undici` dependency failed on the Node 20 runners with `webidl.util.markAsUncloneable is not a function`; the image build stage still uses Node 20.
+
 ## [0.2.1] - 2026-09-23
 
 ### Fixed

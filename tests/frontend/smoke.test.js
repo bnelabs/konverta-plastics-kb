@@ -142,6 +142,9 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 30));
   check('detail dialog links the recorded source',
     !!detail.querySelector('.source-block a[href^="https://"]'),
     detail.querySelector('.source-block')?.textContent?.trim());
+  check('detail dialog is labelled by the material name',
+    window.document.querySelector('#detail-title')?.textContent === 'High-Density Polyethylene',
+    window.document.querySelector('#detail-title')?.outerHTML);
 
   // Unverified material must not pretend to have a source
   window.document.querySelector('#detail .close').click();
@@ -153,6 +156,76 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 30));
     draftDetail.querySelector('.source-block')?.textContent?.trim());
   check('unverified material warns before operational use',
     draftDetail.textContent.includes('verify before operational use'));
+  window.document.querySelector('#detail .close').click();
+
+  // Editor validation must block unsourced records and announce the failure
+  const editor = window.document.querySelector('#editor');
+  const form = window.document.querySelector('#material-form');
+  const toastText = () => window.document.querySelector('#toast').textContent;
+  const submit = () => form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+
+  const addButton = window.document.querySelector('#content [data-add-material]');
+  addButton.focus();
+  addButton.click();
+  await tick();
+  check('editor dialog opens', editor.open === true);
+
+  form.querySelector('[name="source_title"]').value = '';
+  form.querySelector('[name="source_url"]').value = 'https://example.org/source';
+  submit();
+  await tick();
+  check('editor rejects a missing source title', toastText().includes('Source title is required'));
+  check('editor stays open after a validation failure', editor.open === true);
+
+  form.querySelector('[name="source_title"]').value = 'EPA Plastic Identification Guide';
+  form.querySelector('[name="source_url"]').value = 'http://example.org/source';
+  submit();
+  await tick();
+  check('editor rejects a non-https source url', toastText().includes('Source URL must start with'));
+
+  // Keyboard users must not tab out of an open dialog
+  const focusables = [...editor.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])')];
+  const firstFocusable = focusables[0];
+  const lastFocusable = focusables[focusables.length - 1];
+  const tab = (shift) => new window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: shift, bubbles: true, cancelable: true });
+
+  lastFocusable.focus();
+  lastFocusable.dispatchEvent(tab(false));
+  check('Tab from the last control wraps to the first', window.document.activeElement === firstFocusable,
+    `active=${window.document.activeElement?.tagName}:${window.document.activeElement?.getAttribute('name') || window.document.activeElement?.className}`);
+
+  firstFocusable.focus();
+  firstFocusable.dispatchEvent(tab(true));
+  check('Shift+Tab from the first control wraps to the last', window.document.activeElement === lastFocusable);
+
+  // Closing a dialog returns focus to whatever opened it
+  window.document.querySelector('#editor .close').click();
+  await tick();
+  check('closing the editor restores focus to its trigger',
+    window.document.activeElement === addButton, `active=${window.document.activeElement?.tagName}`);
+
+  // Navigation state and keyboard reachability
+  window.document.querySelector('.nav-item[data-view="processes"]').click();
+  await tick();
+  const current = window.document.querySelector('.nav-item[aria-current="page"]');
+  check('active nav item exposes aria-current="page"',
+    current?.dataset.view === 'processes', `aria-current on ${current?.dataset.view}`);
+  check('inactive nav items do not claim aria-current',
+    [...window.document.querySelectorAll('.nav-item')]
+      .filter((b) => b.dataset.view !== 'processes')
+      .every((b) => !b.hasAttribute('aria-current')));
+
+  window.document.querySelector('.nav-item[data-view="projects"]').click();
+  await tick(); await tick();
+  const projectCard = window.document.querySelector('#content [data-project]');
+  check('project card is exposed as a keyboard-focusable button',
+    projectCard?.getAttribute('role') === 'button' && projectCard?.getAttribute('tabindex') === '0',
+    projectCard?.outerHTML?.slice(0, 90));
+  projectCard.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  await tick(); await tick();
+  check('Enter opens the project detail dialog',
+    window.document.querySelector('#detail-body').textContent.includes('HDPE Clip'));
 
   window.close();
   console.log(failures.length ? `\n${failures.length} check(s) failed` : '\nall frontend smoke checks passed');
