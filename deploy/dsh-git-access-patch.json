@@ -1,0 +1,40 @@
+[
+  {
+    "op": "replace",
+    "path": "/spec/template/spec/containers/0/image",
+    "value": "localhost:32000/dsh:0.1.7-alpha.2-0010283-git"
+  },
+  {
+    "op": "add",
+    "path": "/spec/template/spec/initContainers/-",
+    "value": {
+      "name": "install-github-workspace-key",
+      "image": "busybox:1.37.0",
+      "command": [
+        "sh",
+        "-c",
+        "set -eu; mkdir -p /home/dsh/.ssh /home/dsh/workspace; cp /run/secrets/git-ssh/id_ed25519 /home/dsh/.ssh/id_ed25519; cp /run/secrets/git-ssh/known_hosts /home/dsh/.ssh/known_hosts; chmod 600 /home/dsh/.ssh/id_ed25519; chmod 644 /home/dsh/.ssh/known_hosts; printf 'Host github.com\\n  IdentityFile /home/dsh/.ssh/id_ed25519\\n  IdentitiesOnly yes\\n  StrictHostKeyChecking yes\\n  UserKnownHostsFile /home/dsh/.ssh/known_hosts\\n' > /home/dsh/.ssh/config; printf '[user]\\n  name = Konverta DSH\\n  email = dsh@konverta.eu\\n' > /home/dsh/.gitconfig; chmod 600 /home/dsh/.ssh/config /home/dsh/.gitconfig; chown -R 10001:10001 /home/dsh/.ssh /home/dsh/.gitconfig"
+      ],
+      "securityContext": {
+        "runAsUser": 0,
+        "allowPrivilegeEscalation": false,
+        "capabilities": {
+          "drop": ["ALL"],
+          "add": ["CHOWN", "DAC_OVERRIDE"]
+        }
+      },
+      "volumeMounts": [
+        {"name": "dsh-home", "mountPath": "/home/dsh"},
+        {"name": "git-ssh-secret", "mountPath": "/run/secrets/git-ssh", "readOnly": true}
+      ]
+    }
+  },
+  {
+    "op": "add",
+    "path": "/spec/template/spec/volumes/-",
+    "value": {
+      "name": "git-ssh-secret",
+      "secret": {"secretName": "plastics-kb-git-ssh", "defaultMode": 256}
+    }
+  }
+]
