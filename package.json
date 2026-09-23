@@ -1,0 +1,11 @@
+{
+  "name": "konverta-plastics-kb-frontend",
+  "version": "0.2.0",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
