@@ -16,6 +16,17 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt pytest
       - run: pytest
+      # The host deploys this image automatically, so the frontend bundle is
+      # built and booted before a release can be published.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Build frontend bundle
+        run: npm run build
+      - name: Smoke test frontend bundle
+        run: npm run test:frontend
       - name: Validate SemVer tag and image build
         env:
           RELEASE_TAG: ${{ github.ref_name }}
