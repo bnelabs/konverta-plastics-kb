@@ -193,3 +193,8 @@ textarea{resize:vertical;line-height:1.5}
   .topbar{height:70px}
   .form-actions{flex-direction:row;justify-content:space-between;align-items:center}
 }
+
+/* Detail content */
+.detail-kicker{color:var(--green);font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.detail-inner h2{font:700 24px 'Manrope',sans-serif;letter-spacing:-.04em;margin:8px 0 4px}
+.detail-inner .lead{color:#77837a;line-height:1.6}
