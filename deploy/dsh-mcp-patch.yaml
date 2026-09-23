@@ -4,7 +4,6 @@
       config:
         serverName: plastics_kb
         transport: streamable-http
-        url: http://plastics-kb.plastics-kb.svc.cluster.local:8000/mcp/mcp
+        url: http://plastics-kb-mcp.plastics-kb.svc.cluster.local:8001/mcp
         failOnStartupError: true
         toolCallTimeoutMs: 15000
-

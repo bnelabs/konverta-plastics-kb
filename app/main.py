@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sqlite3
@@ -12,11 +13,19 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
+import jwt
+import uvicorn
+from pydantic import BaseModel, Field, field_validator
 
 APP_VERSION = os.getenv("APP_VERSION", "0.1.0")
 DB_PATH = Path(os.getenv("KB_DB_PATH", "/data/plastics-kb.sqlite3"))
 STATIC_DIR = Path(__file__).parent / "static"
 started = time.monotonic()
+access_team = os.getenv("CF_ACCESS_TEAM_DOMAIN", "").rstrip("/")
+access_aud = os.getenv("CF_ACCESS_AUD", "")
+access_email = os.getenv("CF_ACCESS_EMAIL", "baris@konverta.eu").strip().lower()
+jwks_client = jwt.PyJWKClient(f"{access_team}/cdn-cgi/access/certs", cache_jwk_set=True, lifespan=3600) if access_team else None
 
 
 def connect() -> sqlite3.Connection:
@@ -66,6 +75,10 @@ def ensure_schema() -> None:
         CREATE INDEX IF NOT EXISTS idx_material_code ON materials(code);
         CREATE INDEX IF NOT EXISTS idx_project_material ON projects(material_id);
         """)
+        material_columns = {r[1] for r in con.execute("PRAGMA table_info(materials)")}
+        for column, definition in (("source_title", "TEXT"), ("source_url", "TEXT"), ("review_status", "TEXT NOT NULL DEFAULT 'needs_review'")):
+            if column not in material_columns:
+                con.execute(f"ALTER TABLE materials ADD COLUMN {column} {definition}")
         # Populate only a newly initialized database. Existing rows are preserved.
         if con.execute("SELECT COUNT(*) FROM materials").fetchone()[0] == 0:
             legacy = Path("/app/legacy-seed.sqlite3")
@@ -150,7 +163,14 @@ def check_compatibility(a: str, b: str) -> dict[str, str] | None:
         return dict(row) if row else None
 
 
-mcp = FastMCP("Konverta Plastics Knowledge Base", instructions="Use these tools to look up the curated plastics recycling knowledge base. Always surface recorded safety notes and source limitations; do not invent compatibility or processing claims.")
+mcp = FastMCP(
+    "Konverta Plastics Knowledge Base",
+    instructions="Use these tools to look up the curated plastics recycling knowledge base. Always surface recorded safety notes and source limitations; do not invent compatibility or processing claims.",
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=["plastics-kb-mcp.plastics-kb.svc.cluster.local:8001"],
+    ),
+)
 
 
 @mcp.tool()
@@ -177,6 +197,9 @@ def check_polymer_compatibility(material_a: str, material_b: str) -> dict[str, s
     return check_compatibility(material_a, material_b) or {"material_a": material_a.upper(), "material_b": material_b.upper(), "compatibility_status": "Unknown", "description": "No compatibility rule is recorded. Do not infer compatibility; verify with reliable technical sources and testing."}
 
 
+mcp_http_app = mcp.streamable_http_app()
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     ensure_schema()
@@ -185,8 +208,53 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Konverta Plastics KB", version=APP_VERSION, lifespan=lifespan)
-app.mount("/mcp", mcp.streamable_http_app())
 app.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")
+
+
+class MaterialInput(BaseModel):
+    code: str = Field(min_length=2, max_length=12)
+    name: str = Field(min_length=2, max_length=160)
+    common_uses: str = Field(default="", max_length=1000)
+    melt_temp_c: str = Field(default="", max_length=100)
+    density_g_cm3: float | None = Field(default=None, ge=0, le=100)
+    toxicity_level: str = Field(default="Not rated", max_length=40)
+    recyclability: str = Field(default="Not recorded", max_length=120)
+    notes: str = Field(default="", max_length=3000)
+    source_title: str = Field(min_length=2, max_length=240)
+    source_url: str = Field(min_length=10, max_length=2048)
+    review_status: str = Field(default="draft", pattern="^(draft|verified)$")
+
+    @field_validator("code")
+    @classmethod
+    def normalize_code(cls, value: str) -> str:
+        value = value.strip().upper()
+        if not value.replace("-", "").isalnum():
+            raise ValueError("Use a short resin code with letters, numbers, or hyphens")
+        return value
+
+    @field_validator("source_url")
+    @classmethod
+    def require_https_source(cls, value: str) -> str:
+        value = value.strip()
+        if not value.startswith("https://"):
+            raise ValueError("Source URL must use https://")
+        return value
+
+
+@app.middleware("http")
+async def cloudflare_access_gate(request, call_next):
+    if request.url.path != "/healthz" and access_aud:
+        token = request.headers.get("cf-access-jwt-assertion")
+        if not token or jwks_client is None:
+            return JSONResponse(status_code=401, content={"detail": "Cloudflare Access authentication required"})
+        try:
+            signing_key = jwks_client.get_signing_key_from_jwt(token)
+            claims = jwt.decode(token, signing_key.key, algorithms=["RS256"], audience=access_aud, issuer=access_team)
+            if str(claims.get("email", "")).lower() != access_email:
+                return JSONResponse(status_code=403, content={"detail": "This account is not authorized"})
+        except Exception:
+            return JSONResponse(status_code=401, content={"detail": "Cloudflare Access authentication required"})
+    return await call_next(request)
 
 
 @app.get("/", include_in_schema=False)
@@ -215,6 +283,37 @@ def materials(q: str = Query(default="", max_length=120), limit: int = Query(def
     return search_materials(q, limit)
 
 
+@app.post("/api/v1/materials", status_code=201)
+def create_material(payload: MaterialInput) -> dict[str, Any]:
+    values = payload.model_dump()
+    with connect() as con:
+        columns = ",".join(values)
+        marks = ",".join("?" for _ in values)
+        try:
+            cur = con.execute(f"INSERT INTO materials ({columns}) VALUES ({marks})", list(values.values()))
+        except sqlite3.IntegrityError as exc:
+            raise HTTPException(status_code=409, detail="A material with that resin code already exists") from exc
+        material_id = cur.lastrowid
+        con.execute("INSERT INTO kb_events(event,entity_type,entity_id,actor,details) VALUES('created','material',?,'baris',?)", (str(material_id), json.dumps({"code": values["code"], "review_status": values["review_status"]})))
+        return dict(con.execute("SELECT * FROM materials WHERE id=?", (material_id,)).fetchone())
+
+
+@app.put("/api/v1/materials/{code}")
+def update_material(code: str, payload: MaterialInput) -> dict[str, Any]:
+    values = payload.model_dump()
+    with connect() as con:
+        exists = con.execute("SELECT id FROM materials WHERE code=?", (code.upper(),)).fetchone()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Material not found")
+        assignments = ",".join(f"{column}=?" for column in values)
+        try:
+            con.execute(f"UPDATE materials SET {assignments} WHERE id=?", [*values.values(), exists["id"]])
+        except sqlite3.IntegrityError as exc:
+            raise HTTPException(status_code=409, detail="A material with that resin code already exists") from exc
+        con.execute("INSERT INTO kb_events(event,entity_type,entity_id,actor,details) VALUES('updated','material',?,'baris',?)", (str(exists["id"]), json.dumps({"code": values["code"], "review_status": values["review_status"]})))
+        return dict(con.execute("SELECT * FROM materials WHERE id=?", (exists["id"],)).fetchone())
+
+
 @app.get("/api/v1/materials/{code}")
 def material(code: str) -> dict[str, Any]:
     result = material_detail(code)
@@ -236,3 +335,15 @@ def projects(q: str = Query(default="", max_length=120)) -> list[dict[str, Any]]
 @app.get("/api/v1/compatibility")
 def compatibility(material_a: str, material_b: str) -> dict[str, str]:
     return check_compatibility(material_a, material_b) or JSONResponse(status_code=404, content={"detail":"No recorded compatibility rule; treat as unknown."})
+
+
+async def serve() -> None:
+    ensure_schema()
+    async with mcp.session_manager.run():
+        public = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=8000, workers=1, lifespan="off", proxy_headers=True))
+        private_mcp = uvicorn.Server(uvicorn.Config(mcp_http_app, host="0.0.0.0", port=8001, workers=1, lifespan="off", proxy_headers=False))
+        await asyncio.gather(public.serve(), private_mcp.serve())
+
+
+if __name__ == "__main__":
+    asyncio.run(serve())

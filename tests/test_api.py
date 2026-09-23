@@ -44,6 +44,27 @@ class KnowledgeBaseApiTests(unittest.TestCase):
         self.assertEqual(rule.status_code, 200)
         self.assertEqual(rule.json()["compatibility_status"], "Incompatible")
 
+    def test_source_backed_material_editor_and_duplicate_guard(self):
+        payload = {
+            "code": "abs", "name": "Acrylonitrile butadiene styrene",
+            "common_uses": "Appliance housings", "melt_temp_c": "Verify source",
+            "density_g_cm3": 1.04, "toxicity_level": "Not rated",
+            "recyclability": "Varies by local stream", "notes": "Draft only",
+            "source_title": "Example technical source", "source_url": "https://example.org/abs",
+            "review_status": "draft",
+        }
+        created = self.client.post("/api/v1/materials", json=payload)
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.json()["code"], "ABS")
+        self.assertEqual(created.json()["review_status"], "draft")
+        self.assertEqual(self.client.post("/api/v1/materials", json=payload).status_code, 409)
+        payload["name"] = "ABS updated"
+        payload["review_status"] = "verified"
+        updated = self.client.put("/api/v1/materials/ABS", json=payload)
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(updated.json()["name"], "ABS updated")
+        self.assertEqual(updated.json()["review_status"], "verified")
+
     def test_frontend_is_served(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
