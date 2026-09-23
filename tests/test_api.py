@@ -16,6 +16,11 @@ class KnowledgeBaseApiTests(unittest.TestCase):
     def setUpClass(cls):
         ensure_schema()
         cls.client = TestClient(app)
+        cls.client.__enter__()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.client.__exit__(None, None, None)
 
     def test_health_and_metrics(self):
         self.assertEqual(self.client.get("/healthz").status_code, 200)

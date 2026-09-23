@@ -180,7 +180,8 @@ def check_polymer_compatibility(material_a: str, material_b: str) -> dict[str, s
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     ensure_schema()
-    yield
+    async with mcp.session_manager.run():
+        yield
 
 
 app = FastAPI(title="Konverta Plastics KB", version=APP_VERSION, lifespan=lifespan)
@@ -235,4 +236,3 @@ def projects(q: str = Query(default="", max_length=120)) -> list[dict[str, Any]]
 @app.get("/api/v1/compatibility")
 def compatibility(material_a: str, material_b: str) -> dict[str, str]:
     return check_compatibility(material_a, material_b) or JSONResponse(status_code=404, content={"detail":"No recorded compatibility rule; treat as unknown."})
-
