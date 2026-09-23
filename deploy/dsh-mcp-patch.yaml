@@ -1,0 +1,10 @@
+- insert:
+    - id: mcp-konverta-plastics-kb
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: plastics_kb
+        transport: streamable-http
+        url: http://plastics-kb.plastics-kb.svc.cluster.local:8000/mcp/mcp
+        failOnStartupError: true
+        toolCallTimeoutMs: 15000
+

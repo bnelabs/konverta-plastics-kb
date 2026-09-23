@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f6f7f4"><title>Konverta Materials Library</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" aria-label="Main navigation">
+      <a class="brand" href="/"><span class="brand-mark">K</span><span><b>Konverta</b><small>Materials library</small></span></a>
+      <div class="workspace-label">KNOWLEDGE BASE</div>
+      <nav>
+        <button class="nav-item active" data-view="overview"><span class="nav-icon">◫</span>Overview</button>
+        <button class="nav-item" data-view="materials"><span class="nav-icon">◈</span>Materials <span class="nav-count" id="nav-materials">—</span></button>
+        <button class="nav-item" data-view="processes"><span class="nav-icon">⟳</span>Processes</button>
+        <button class="nav-item" data-view="projects"><span class="nav-icon">✳</span>Projects</button>
+      </nav>
+      <div class="sidebar-bottom"><div class="status-dot"></div><span>Library is up to date</span><a href="/api/v1/metrics" target="_blank" aria-label="Open KB metrics">↗</a></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar"><div class="crumb"><span>Workspace</span><span class="slash">/</span><strong id="breadcrumb">Overview</strong></div><div class="top-actions"><span class="version" id="version">v—</span><div class="avatar" title="Konverta">K</div></div></header>
+      <section class="page-head"><div><div class="eyebrow">PLASTICS RECYCLING & UPCYCLING</div><h1 id="page-title">Materials, made useful.</h1><p id="page-description">A practical field guide to working with recycled plastics.</p></div><button id="refresh" class="icon-button" title="Refresh library" aria-label="Refresh library">↻</button></section>
+      <section class="search-row"><div class="searchbox"><span class="search-icon">⌕</span><input id="search" type="search" placeholder="Search materials, uses, processes…" autocomplete="off"><kbd>↵</kbd></div><span class="search-hint">Search by resin code, name, or common use</span></section>
+      <section id="stats" class="stats" aria-label="Library summary"></section>
+      <section id="content" class="content" aria-live="polite"><div class="loading"><span></span>Loading the library…</div></section>
+      <footer><span>Knowledge for a more circular material future.</span><span>Konverta · <a href="/api/v1/metrics">Library metrics</a></span></footer>
+    </main>
+  </div>
+  <dialog id="detail" class="detail-dialog"><button class="close" aria-label="Close">×</button><div id="detail-body"></div></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="/assets/app.js" defer></script>
+</body></html>
+
