@@ -63,6 +63,11 @@ unknown and is deliberately not discussed anywhere in this dataset.
 - Supports: name; uses (acrylic sheets, safety glass substitutes, display cases, lighting diffusers); density 1.18 g/cm³; transparent thermoplastic also known as acrylic glass; trade names Perspex, Plexiglas, Lucite; processing ~160-230 °C; resin code 7; safety notes on ventilation for monomer release.
 - review_status: verified
 
+## PETG — Polyethylene terephthalate glycol
+- Source: [Polyethylene terephthalate - Wikipedia](https://en.wikipedia.org/wiki/Polyethylene_terephthalate) (200 OK, retrieved 2026-10-05)
+- Supports: name; uses (bottles, thermoformed packaging, 3D printing filament); density ~1.27 g/cm³; transparent amorphous polyester copolymer; processing ~230-260 °C; resin code 1; recyclable but often downcycled.
+- review_status: verified
+
 ## Operator runbook: applying to the live DB
 
 Option A — host-side script (in-place update, safe to re-run):
