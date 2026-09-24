@@ -572,6 +572,31 @@ footer a:hover{text-decoration:underline}
   .content{scroll-margin-top:100px}
 }
 
+/* ------------------------------------------------ contamination guide ----- */
+.contamination-guide{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:14px;
+  margin:0 0 16px;
+  font-size:13px;
+  line-height:1.5;
+}
+.contamination-guide h3{
+  margin:0 0 6px;
+  font:700 14px/1.2 'Manrope',sans-serif;
+}
+.contamination-guide ul{
+  margin:8px 0 0 18px;
+}
+.contamination-guide a{
+  color:var(--green);
+  text-decoration:none;
+}
+.contamination-guide a:hover{
+  text-decoration:underline;
+}
+
 /* -------------------------------------------------------- preferences ----- */
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{

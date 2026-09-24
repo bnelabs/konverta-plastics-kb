@@ -58,6 +58,11 @@ unknown and is deliberately not discussed anywhere in this dataset.
 - Supports: name; uses (safety glasses, optical discs, automotive glazing, electrical housings, water bottles); density 1.20–1.22 g/cm³; glass transition ~147 °C, processing ~220-240 °C; resin code 7; safety notes on BPA precursor, potential leaching with heat, and phenolic vapour on processing.
 - review_status: verified
 
+## PMMA — Poly(methyl methacrylate)
+- Source: [Poly(methyl methacrylate) - Wikipedia](https://en.wikipedia.org/wiki/Poly(methyl_methacrylate)) (200 OK, retrieved 2026-10-05)
+- Supports: name; uses (acrylic sheets, safety glass substitutes, display cases, lighting diffusers); density 1.18 g/cm³; transparent thermoplastic also known as acrylic glass; trade names Perspex, Plexiglas, Lucite; processing ~160-230 °C; resin code 7; safety notes on ventilation for monomer release.
+- review_status: verified
+
 ## Operator runbook: applying to the live DB
 
 Option A — host-side script (in-place update, safe to re-run):
