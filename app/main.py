@@ -24,7 +24,7 @@ try:  # `python -m app.main` / `uvicorn app.main:app`
 except ModuleNotFoundError:  # pragma: no cover - `python app/main.py`
     from curation import import_material_rows, parse_csv_rows, parse_json_rows
 
-APP_VERSION = os.getenv("APP_VERSION", "0.4.0")
+APP_VERSION = os.getenv("APP_VERSION", "0.5.1")
 DB_PATH = Path(os.getenv("KB_DB_PATH", "/data/plastics-kb.sqlite3"))
 STATIC_DIR = Path(__file__).parent / "static"
 started = time.monotonic()
