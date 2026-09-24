@@ -596,6 +596,19 @@ footer a:hover{text-decoration:underline}
 .contamination-guide a:hover{
   text-decoration:underline;
 }
+.severity-badge{
+  font-size:10px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  padding:3px 7px;
+  border-radius:6px;
+  margin-left:auto;
+}
+.severity-badge.critical{background:#f9ebe6;color:#a24d3d}
+.severity-badge.high{background:#fff4e4;color:#a15e1a}
+.severity-badge.moderate{background:#eef4ff;color:#3a5a8a}
+.severity-badge.low{background:#e8f3eb;color:#1d5b3c}
 
 /* -------------------------------------------------------- preferences ----- */
 @media (prefers-reduced-motion:reduce){
