@@ -34,6 +34,10 @@ MCP tools: `search_plastics_knowledge`, `get_plastic_material`, `list_recycling_
 
 Build a release image on the server with `scripts/build-release.sh 0.1.2`. It creates and removes an isolated BuildKit builder so it does not grow the host's shared build cache. Deploy with `scripts/deploy-release.sh 0.1.2`.
 
+`deploy/k8s.yaml` carries no version: the image tag and `APP_VERSION` are the placeholder `__KB_RELEASE__`, which `scripts/deploy-release.sh` substitutes before applying. Applying the manifest directly is therefore not a deploy — the pod fails with `ImagePullBackOff`, loudly, so a stale hardcoded version cannot roll the Deployment backwards. See [docs/RELEASE.md](docs/RELEASE.md).
+
+To go back to an earlier release, use `scripts/rollback-release.sh --to v0.2.1`. A bare `kubectl rollout undo` does not stick: the host timer deploys the newest published release every five minutes and re-converges. The script withdraws the newer releases so the target becomes latest. The full procedure, including fix-forward and its caveats, is in [docs/RELEASE.md](docs/RELEASE.md#7-rollback).
+
 Use SemVer tags (`vMAJOR.MINOR.PATCH`). GitHub Actions runs tests and builds the production container for branch/PR changes. A release tag must point to a commit already on `main`; the release workflow reruns tests, creates a private GitHub Release, and attaches the immutable OCI image archive. A five-minute host timer downloads completed release assets, pushes the image into the local registry, and rolls MicroK8s forward; it runs on the host, so it adds no pod. Kubernetes retains the last five revisions.
 
 SQLite is suitable for the current small, single-writer library. Do not mount this database into DSH; use the API/MCP service. A host systemd timer runs SQLite's online backup API daily, copies the snapshot to `/srv/backups/plastics-kb`, verifies `PRAGMA integrity_check`, and retains 35 days. Include a restore drill before relying on the KB as the only copy of important research.

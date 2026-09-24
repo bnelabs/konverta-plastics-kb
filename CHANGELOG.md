@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- `scripts/deploy-release.sh` now renders `deploy/k8s.yaml` for the target version before applying it. The manifest used to hardcode `localhost:32000/plastics-kb:0.1.2`, so every deploy applied that image (and `APP_VERSION`) first and only then patched in the released version — briefly rolling the Deployment backwards and able to start an old pod. Both fields are now the `__KB_RELEASE__` placeholder, the script refuses to run if the placeholder is missing, and one rendered apply changes the spec exactly once.
+
+### Added
+- `scripts/rollback-release.sh` performs a rollback that sticks. `kubectl rollout undo` does not: the host timer deploys the newest published release every five minutes and re-converges. The script withdraws the releases published after the target (keeping git tags unless `--delete-tags`), refuses a target with no image archive, and can converge immediately instead of waiting for the next tick. `--list` shows the releases and what is running.
+- `tests/test_deploy_scripts.py` runs the real deploy scripts with `gh`, `docker`, `git` and kubectl stubbed, covering the stale-version regression, the asset and already-current skip paths, rollback withdrawal, confirmation, and the missing-asset refusal.
+- `KB_REPO`, `KB_PROJECT_DIR`, `KB_LOCK_FILE` and `KUBECTL` hooks on the host scripts, defaulting to the production values.
+
+### Changed
+- `docs/RELEASE.md` documents the placeholder, the batch order, and rollback as durable (withdraw the release), fix-forward (new patch tag), or temporary (`rollout undo`).
+
 ## [0.3.0] - 2026-09-23
 
 ### Added

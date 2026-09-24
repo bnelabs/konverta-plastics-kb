@@ -137,16 +137,34 @@ diagnostics in section 8 when a release is not picked up.
 
 `scripts/deploy-release.sh <MAJOR.MINOR.PATCH>` (it rejects anything else with exit 2):
 
-1. `microk8s kubectl apply -f deploy/k8s.yaml`
-2. `microk8s kubectl -n plastics-kb set image deployment/plastics-kb "plastics-kb=localhost:32000/plastics-kb:$version"`
-3. `microk8s kubectl -n plastics-kb set env deployment/plastics-kb "APP_VERSION=$version"`
-4. `microk8s kubectl -n plastics-kb rollout status deployment/plastics-kb --timeout=180s`
-5. `microk8s kubectl -n plastics-kb get pod -o wide`
+1. render `deploy/k8s.yaml` with `__KB_RELEASE__` replaced by the target version, into a temp file
+2. `microk8s kubectl apply -f <rendered>`
+3. `microk8s kubectl -n plastics-kb set image deployment/plastics-kb "plastics-kb=localhost:32000/plastics-kb:$version"`
+4. `microk8s kubectl -n plastics-kb set env deployment/plastics-kb "APP_VERSION=$version"`
+5. `microk8s kubectl -n plastics-kb rollout status deployment/plastics-kb --timeout=180s`
+6. print the resulting image, then `get pod -o wide`
 
-Steps 2 and 3 change the pod template, which creates a new Deployment revision and
-replaces the pod; the trailing `rollout status` fails the script if the new pod does not
-become ready within 180 seconds (in that case the old pod has already been removed,
-because the strategy is `Recreate`).
+### The `__KB_RELEASE__` placeholder
+
+`deploy/k8s.yaml` deliberately contains no version. The image tag and `APP_VERSION`
+are both written as `__KB_RELEASE__`, and the script refuses to run if that
+placeholder is missing.
+
+This exists because applying the raw manifest and *then* patching the image changes the
+pod template twice: the first apply sets the image back to whatever version the file
+names (it used to be a hardcoded `0.1.2`), which can start an old pod before the second
+change corrects it. With one rendered apply the spec changes exactly once.
+
+**Consequence:** `microk8s kubectl apply -f deploy/k8s.yaml` on its own is not a valid
+deploy. The image tag `__KB_RELEASE__` does not exist, so the pod fails with
+`ImagePullBackOff` — deliberately loud, so nobody ships a stale version by accident.
+Always deploy through `scripts/deploy-release.sh`.
+
+Steps 3 and 4 are idempotent confirmations: they are no-ops when the rendered manifest is
+correct, and they repair drift if somebody edited the Deployment by hand. They change the
+pod template, which creates a new Deployment revision and replaces the pod; the trailing
+`rollout status` fails the script if the new pod does not become ready within 180 seconds
+(in that case the old pod has already been removed, because the strategy is `Recreate`).
 
 What is deployed (`deploy/k8s.yaml`):
 
@@ -194,8 +212,39 @@ git fetch --tags origin && git tag --list 'v*.*.*' --sort=-v:refname | head -5
 
 ## 7. Rollback
 
-Kubernetes keeps the last five old revisions (`revisionHistoryLimit: 5` in
-`deploy/k8s.yaml`), which is what `rollout undo` restores:
+### 7a. Durable rollback (use this)
+
+`scripts/rollback-release.sh` is the supported path, because it addresses the reason
+`rollout undo` does not last: the timer deploys the **newest published release**, so
+anything that leaves a bad release as "latest" gets re-deployed within five minutes.
+
+```sh
+scripts/rollback-release.sh --list                  # releases, assets, and what is running
+scripts/rollback-release.sh --to v0.2.1             # prompts before deleting anything
+scripts/rollback-release.sh --to v0.2.1 --yes       # withdraw newer releases, then converge
+scripts/rollback-release.sh --to v0.2.1 --yes --no-deploy   # withdraw only
+```
+
+It withdraws every release published *after* the target (so the target becomes "latest"),
+keeps the git tags unless `--delete-tags` is given, then runs
+`scripts/auto-deploy-release.sh` so convergence is immediate instead of waiting for the
+next tick. It refuses to roll back to a release that has no `plastics-kb-<version>.tar.gz`
+asset, because the timer would skip that release and the rollback could never take effect.
+
+Deleting a release is destructive: its image archive disappears with it. Re-tagging the
+same version later does **not** rebuild the archive — publish a new patch version instead
+(see 7b).
+
+### 7b. Fix forward (usually better)
+
+Revert the offending commit on `main`, then tag a new patch release (`v0.3.1`). The
+pipeline rebuilds and republishes, the timer converges automatically, and nothing has to
+be withdrawn.
+
+### 7c. `rollout undo` (immediate, temporary)
+
+Kubernetes keeps the last five revisions (`revisionHistoryLimit: 5`), which is what
+`rollout undo` restores:
 
 ```sh
 microk8s kubectl -n plastics-kb rollout history deployment/plastics-kb
@@ -210,11 +259,9 @@ from section 6.
 
 Caveats:
 
-- **The rollback is not sticky.** The host timer compares the running image with the
-  latest GitHub release; after a rollback they differ, so the next tick pushes and
-  deploys the newest release again. To keep an older version running, either remove the
-  bad release (or its asset) so the latest release is the good one, or stop the host
-  timer while the fix is prepared.
+- **This is not sticky.** The host timer compares the running image with the latest GitHub
+  release; after an undo they differ, so the next tick redeploys the newest release. Use
+  7a to make it stick, or stop the timer while the fix is prepared.
 - **The manifest is not rolled back.** `rollout undo` restores the previous pod template
   only. What lives in `deploy/k8s.yaml` (probes, resources, env defaults, Ingress,
   NetworkPolicy) is re-applied from the host's `main` checkout the next time
