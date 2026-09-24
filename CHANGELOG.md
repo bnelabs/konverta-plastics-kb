@@ -1,22 +1,20 @@
 # Changelog
 
-## [Unreleased]
+## [0.5.0] - 2026-09-24
 
 ### Added
-- Expanded materials library to 9 curated resins: PA Polyamide and PC Polycarbonate added with verified Wikipedia sources and safety notes.
-- New contamination section: `contamination` table, `GET /api/v1/contamination`, MCP tool `search_contamination_risks`, and Contamination tab in UI with source-cited risks and safety notes.
-- UI/UX polish: Contamination navigation, deep-link support, client-side caching, bulk-import UI, material history view.
-
-### Fixed
-- `scripts/deploy-release.sh` now renders `deploy/k8s.yaml` for the target version before applying it. The manifest used to hardcode `localhost:32000/plastics-kb:0.1.2`, so every deploy applied that image (and `APP_VERSION`) first and only then patched in the released version — briefly rolling the Deployment backwards and able to start an old pod. Both fields are now the `__KB_RELEASE__` placeholder, the script refuses to run if the placeholder is missing, and one rendered apply changes the spec exactly once.
-
-### Added
-- `scripts/rollback-release.sh` performs a rollback that sticks. `kubectl rollout undo` does not: the host timer deploys the newest published release every five minutes and re-converges. The script withdraws the releases published after the target (keeping git tags unless `--delete-tags`), refuses a target with no image archive, and can converge immediately instead of waiting for the next tick. `--list` shows the releases and what is running.
-- `tests/test_deploy_scripts.py` runs the real deploy scripts with `gh`, `docker`, `git` and kubectl stubbed, covering the stale-version regression, the asset and already-current skip paths, rollback withdrawal, confirmation, and the missing-asset refusal.
-- `KB_REPO`, `KB_PROJECT_DIR`, `KB_LOCK_FILE` and `KUBECTL` hooks on the host scripts, defaulting to the production values.
+- Materials library expanded from 6 → 12 curated resins: HDPE, ABS, PET, PP, LDPE, PS, PVC, PA, PC, PMMA, PETG, TPU with verified Wikipedia sources, density, melt range, toxicity, recyclability, safety notes, and `review_status=verified`.
+- Contamination section scaffold: `contamination` table with full schema, MCP tool `search_contamination_risks`, REST `GET /api/v1/contamination`, UI Contamination tab with discrimination guide.
+- Contamination scenarios doc `docs/CONTAMINATION_SCENARIOS.md` documenting 6 realistic mixed-bulk scenarios with source-backed recommendations, safety notes, and discrimination matrix.
+- Contamination seed data `scripts/contamination_seed.csv` with 7 source-backed rows ready for import; runbook in `docs/CONTAMINATION_SEEDING.md`.
 
 ### Changed
-- `docs/RELEASE.md` documents the placeholder, the batch order, and rollback as durable (withdraw the release), fix-forward (new patch tag), or temporary (`rollout undo`).
+- UI enhancements: severity badges in contamination cards, `contamination-guide` panel with quick tips, 44 px tap targets, safe-area insets, sticky search, mobile-first CSS.
+
+## [Unreleased]
+
+### Changed
+- APP_VERSION default bumped to 0.5.1; UI polish verification pending.
 
 ## [0.3.0] - 2026-09-23
 
