@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+- Expanded materials library to 9 curated resins: PA Polyamide and PC Polycarbonate added with verified Wikipedia sources and safety notes.
+- New contamination section: `contamination` table, `GET /api/v1/contamination`, MCP tool `search_contamination_risks`, and Contamination tab in UI with source-cited risks and safety notes.
+- UI/UX polish: Contamination navigation, deep-link support, client-side caching, bulk-import UI, material history view.
+
 ### Fixed
 - `scripts/deploy-release.sh` now renders `deploy/k8s.yaml` for the target version before applying it. The manifest used to hardcode `localhost:32000/plastics-kb:0.1.2`, so every deploy applied that image (and `APP_VERSION`) first and only then patched in the released version — briefly rolling the Deployment backwards and able to start an old pod. Both fields are now the `__KB_RELEASE__` placeholder, the script refuses to run if the placeholder is missing, and one rendered apply changes the spec exactly once.
 
