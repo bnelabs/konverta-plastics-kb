@@ -68,6 +68,11 @@ unknown and is deliberately not discussed anywhere in this dataset.
 - Supports: name; uses (bottles, thermoformed packaging, 3D printing filament); density ~1.27 g/cm³; transparent amorphous polyester copolymer; processing ~230-260 °C; resin code 1; recyclable but often downcycled.
 - review_status: verified
 
+## TPU — Thermoplastic Polyurethane
+- Source: [Thermoplastic polyurethane - Wikipedia](https://en.wikipedia.org/wiki/Thermoplastic_polyurethane) (200 OK, retrieved 2026-10-05)
+- Supports: name; uses (footwear, seals, adhesives, medical devices, coated fabrics); density ~1.2 g/cm³; elastic polymer with high abrasion resistance; melt processable; resin code typically 5 or 7; good elasticity and low-temperature flexibility.
+- review_status: verified
+
 ## Operator runbook: applying to the live DB
 
 Option A — host-side script (in-place update, safe to re-run):
