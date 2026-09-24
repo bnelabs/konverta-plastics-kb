@@ -24,7 +24,7 @@ try:  # `python -m app.main` / `uvicorn app.main:app`
 except ModuleNotFoundError:  # pragma: no cover - `python app/main.py`
     from curation import import_material_rows, parse_csv_rows, parse_json_rows
 
-APP_VERSION = os.getenv("APP_VERSION", "0.1.0")
+APP_VERSION = os.getenv("APP_VERSION", "0.4.0")
 DB_PATH = Path(os.getenv("KB_DB_PATH", "/data/plastics-kb.sqlite3"))
 STATIC_DIR = Path(__file__).parent / "static"
 started = time.monotonic()
@@ -78,8 +78,20 @@ def ensure_schema() -> None:
           entity_type TEXT NOT NULL, entity_id TEXT, actor TEXT NOT NULL DEFAULT 'system',
           details TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS contamination (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          contaminant_name TEXT NOT NULL,
+          material_id INTEGER NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+          impact_description TEXT NOT NULL,
+          safety_notes TEXT NOT NULL,
+          source_title TEXT NOT NULL,
+          source_url TEXT NOT NULL,
+          review_status TEXT NOT NULL DEFAULT 'needs_review'
+        );
         CREATE INDEX IF NOT EXISTS idx_material_code ON materials(code);
         CREATE INDEX IF NOT EXISTS idx_project_material ON projects(material_id);
+        CREATE INDEX IF NOT EXISTS idx_contamination_material ON contamination(material_id);
+        CREATE INDEX IF NOT EXISTS idx_contamination_contaminant ON contamination(contaminant_name);
         """)
         material_columns = {r[1] for r in con.execute("PRAGMA table_info(materials)")}
         for column, definition in (("source_title", "TEXT"), ("source_url", "TEXT"), ("review_status", "TEXT NOT NULL DEFAULT 'needs_review'")):
@@ -169,6 +181,33 @@ def check_compatibility(a: str, b: str) -> dict[str, str] | None:
         return dict(row) if row else None
 
 
+def list_contamination_risks(material_code: str = "", contaminant_query: str = "", limit: int = 100) -> list[dict[str, Any]]:
+    material_code = material_code.strip().upper()
+    contaminant_query = contaminant_query.strip()
+    with connect() as con:
+        clauses = []
+        params: list[Any] = []
+        if material_code:
+            clauses.append("m.code = ?")
+            params.append(material_code)
+        if contaminant_query:
+            clauses.append("c.contaminant_name LIKE ?")
+            params.append(f"%{contaminant_query}%")
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        sql = f"""
+          SELECT c.id, c.contaminant_name, m.code AS material_code, m.name AS material_name,
+                 c.impact_description, c.safety_notes, c.source_title, c.source_url, c.review_status
+          FROM contamination c
+          JOIN materials m ON m.id = c.material_id
+          {where}
+          ORDER BY m.code, c.contaminant_name
+          LIMIT ?
+        """
+        params.append(limit)
+        rows = con.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
+
 mcp = FastMCP(
     "Konverta Plastics Knowledge Base",
     instructions="Use these tools to look up the curated plastics recycling knowledge base. Always surface recorded safety notes and source limitations; do not invent compatibility or processing claims.",
@@ -202,6 +241,12 @@ def check_polymer_compatibility(material_a: str, material_b: str) -> dict[str, s
     """Look up a recorded blend compatibility rule. An unknown pair is explicitly returned as unknown."""
     return check_compatibility(material_a, material_b) or {"material_a": material_a.upper(), "material_b": material_b.upper(), "compatibility_status": "Unknown", "description": "No compatibility rule is recorded. Do not infer compatibility; verify with reliable technical sources and testing."}
 
+
+@mcp.tool()
+def search_contamination_risks(query: str = "", material_code: str = "", limit: int = 50) -> list[dict[str, Any]]:
+    """Search recorded contamination risks by contaminant name or material code. Always surface safety notes and source citations; do not invent risks."""
+    limit = max(1, min(int(limit), 100))
+    return list_contamination_risks(material_code=material_code, contaminant_query=query, limit=limit)
 
 mcp_http_app = mcp.streamable_http_app()
 
@@ -247,6 +292,50 @@ class MaterialInput(BaseModel):
         return value
 
 
+# --- write rate limiting ---------------------------------------------------
+# In-memory fixed window for write methods. Limits read per request so tests can
+# shrink them via KB_RATE_LIMIT_MAX / KB_RATE_LIMIT_WINDOW. Keyed by the
+# authenticated actor email when present, else by client host.
+_RATE_LIMIT_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+rate_limit_buckets: dict[str, list[float]] = {}
+
+
+def rate_limit_exceeded(key: str) -> float | None:
+    """Record one hit for *key*; return retry-after seconds when over the limit."""
+    maximum = int(os.getenv("KB_RATE_LIMIT_MAX", "30"))
+    window = float(os.getenv("KB_RATE_LIMIT_WINDOW", "60"))
+    now = time.monotonic()
+    hits = rate_limit_buckets.setdefault(key, [])
+    if hits and now - hits[0] >= window:
+        hits.clear()
+    if len(hits) >= maximum:
+        return max(1.0, window - (now - hits[0]))
+    hits.append(now)
+    return None
+
+
+def actor_of(request: Request) -> str:
+    """Authenticated email stashed by the Cloudflare gate, else a dev fallback."""
+    return getattr(request.state, "actor_email", None) or "local-dev"
+
+
+# Declared BEFORE cloudflare_access_gate so it runs inside it (the gate sets
+# request.state.actor_email first and unauthenticated requests never count).
+@app.middleware("http")
+async def write_rate_limit(request, call_next):
+    if request.method in _RATE_LIMIT_METHODS and request.url.path != "/healthz":
+        key = actor_of(request) if getattr(request.state, "actor_email", None) else (
+            request.client.host if request.client else "unknown")
+        retry_after = rate_limit_exceeded(key)
+        if retry_after is not None:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Write rate limit exceeded; retry later"},
+                headers={"Retry-After": str(int(retry_after))},
+            )
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def cloudflare_access_gate(request, call_next):
     if request.url.path != "/healthz" and access_aud:
@@ -260,6 +349,7 @@ async def cloudflare_access_gate(request, call_next):
                 return JSONResponse(status_code=403, content={"detail": "This account is not authorized"})
         except Exception:
             return JSONResponse(status_code=401, content={"detail": "Cloudflare Access authentication required"})
+        request.state.actor_email = str(claims.get("email", "")).strip().lower() or None
     return await call_next(request)
 
 
@@ -300,11 +390,11 @@ BULK_MAX_ROWS = 10000
 BULK_MAX_BYTES = 5_000_000
 
 
-def _store_bulk_rows(rows: list[tuple[int, Any]], source_format: str) -> dict[str, Any]:
+def _store_bulk_rows(rows: list[tuple[int, Any]], source_format: str, actor: str) -> dict[str, Any]:
     """Insert a validated batch on a worker thread so the event loop stays free."""
     con = connect()
     try:
-        result = import_material_rows(con, rows, source_format=source_format)
+        result = import_material_rows(con, rows, source_format=source_format, actor=actor)
         con.commit()
     finally:
         con.close()
@@ -339,11 +429,11 @@ async def bulk_materials(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if len(rows) > BULK_MAX_ROWS:
         raise HTTPException(status_code=413, detail=f"Batch exceeds the {BULK_MAX_ROWS}-row limit")
-    return await run_in_threadpool(_store_bulk_rows, rows, "json" if as_json else "csv")
+    return await run_in_threadpool(_store_bulk_rows, rows, "json" if as_json else "csv", actor_of(request))
 
 
 @app.post("/api/v1/materials", status_code=201)
-def create_material(payload: MaterialInput) -> dict[str, Any]:
+def create_material(payload: MaterialInput, request: Request) -> dict[str, Any]:
     values = payload.model_dump()
     with connect() as con:
         columns = ",".join(values)
@@ -353,12 +443,12 @@ def create_material(payload: MaterialInput) -> dict[str, Any]:
         except sqlite3.IntegrityError as exc:
             raise HTTPException(status_code=409, detail="A material with that resin code already exists") from exc
         material_id = cur.lastrowid
-        con.execute("INSERT INTO kb_events(event,entity_type,entity_id,actor,details) VALUES('created','material',?,'baris',?)", (str(material_id), json.dumps({"code": values["code"], "review_status": values["review_status"]})))
+        con.execute("INSERT INTO kb_events(event,entity_type,entity_id,actor,details) VALUES('created','material',?,?,?)", (str(material_id), actor_of(request), json.dumps({"code": values["code"], "review_status": values["review_status"]})))
         return dict(con.execute("SELECT * FROM materials WHERE id=?", (material_id,)).fetchone())
 
 
 @app.put("/api/v1/materials/{code}")
-def update_material(code: str, payload: MaterialInput) -> dict[str, Any]:
+def update_material(code: str, payload: MaterialInput, request: Request) -> dict[str, Any]:
     values = payload.model_dump()
     with connect() as con:
         exists = con.execute("SELECT id FROM materials WHERE code=?", (code.upper(),)).fetchone()
@@ -369,7 +459,7 @@ def update_material(code: str, payload: MaterialInput) -> dict[str, Any]:
             con.execute(f"UPDATE materials SET {assignments} WHERE id=?", [*values.values(), exists["id"]])
         except sqlite3.IntegrityError as exc:
             raise HTTPException(status_code=409, detail="A material with that resin code already exists") from exc
-        con.execute("INSERT INTO kb_events(event,entity_type,entity_id,actor,details) VALUES('updated','material',?,'baris',?)", (str(exists["id"]), json.dumps({"code": values["code"], "review_status": values["review_status"]})))
+        con.execute("INSERT INTO kb_events(event,entity_type,entity_id,actor,details) VALUES('updated','material',?,?,?)", (str(exists["id"]), actor_of(request), json.dumps({"code": values["code"], "review_status": values["review_status"]})))
         return dict(con.execute("SELECT * FROM materials WHERE id=?", (exists["id"],)).fetchone())
 
 
@@ -394,6 +484,117 @@ def projects(q: str = Query(default="", max_length=120)) -> list[dict[str, Any]]
 @app.get("/api/v1/compatibility")
 def compatibility(material_a: str, material_b: str) -> dict[str, str]:
     return check_compatibility(material_a, material_b) or JSONResponse(status_code=404, content={"detail":"No recorded compatibility rule; treat as unknown."})
+
+
+@app.get("/api/v1/contamination")
+def contamination_list(
+    material_code: str = Query(default="", max_length=20),
+    contaminant: str = Query(default="", max_length=120),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[dict[str, Any]]:
+    """Read-only listing of contamination risks. Filters by material code and/or contaminant name substring."""
+    return list_contamination_risks(material_code=material_code, contaminant_query=contaminant, limit=limit)
+
+
+EVENT_FIELDS = "id,event,entity_type,entity_id,actor,details,created_at"
+
+
+@app.get("/api/v1/events")
+def kb_events(
+    entity_type: str | None = Query(default=None, max_length=40),
+    entity_id: str | None = Query(default=None, max_length=40),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> list[dict[str, Any]]:
+    """Audit log rows, newest first. Entity history for the frontend history view."""
+    clauses: list[str] = []
+    params: list[Any] = []
+    if entity_type:
+        clauses.append("entity_type=?")
+        params.append(entity_type)
+    if entity_id:
+        clauses.append("entity_id=?")
+        params.append(entity_id)
+    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+    with connect() as con:
+        rows = con.execute(f"SELECT {EVENT_FIELDS} FROM kb_events{where} ORDER BY id DESC LIMIT ?", (*params, limit)).fetchall()
+        return [dict(r) for r in rows]
+
+
+class ProcessInput(BaseModel):
+    name: str = Field(min_length=2, max_length=160)
+    description: str = Field(default="", max_length=3000)
+    equipment_needed: str = Field(default="", max_length=1000)
+    safety_precautions: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("safety_precautions")
+    @classmethod
+    def require_safety(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("safety_precautions must not be empty (safety-first)")
+        return value
+
+
+@app.post("/api/v1/processes", status_code=201)
+def create_process(payload: ProcessInput, request: Request) -> dict[str, Any]:
+    values = payload.model_dump()
+    with connect() as con:
+        cur = con.execute("INSERT INTO processes(name,description,equipment_needed,safety_precautions) VALUES(?,?,?,?)", (values["name"], values["description"], values["equipment_needed"], values["safety_precautions"]))
+        process_id = cur.lastrowid
+        con.execute("INSERT INTO kb_events(event,entity_type,entity_id,actor,details) VALUES('created','process',?,?,?)", (str(process_id), actor_of(request), json.dumps({"name": values["name"]})))
+        return dict(con.execute("SELECT * FROM processes WHERE id=?", (process_id,)).fetchone())
+
+
+@app.put("/api/v1/processes/{process_id}")
+def update_process(process_id: int, payload: ProcessInput, request: Request) -> dict[str, Any]:
+    values = payload.model_dump()
+    with connect() as con:
+        if not con.execute("SELECT id FROM processes WHERE id=?", (process_id,)).fetchone():
+            raise HTTPException(status_code=404, detail="Process not found")
+        con.execute("UPDATE processes SET name=?,description=?,equipment_needed=?,safety_precautions=? WHERE id=?", (values["name"], values["description"], values["equipment_needed"], values["safety_precautions"], process_id))
+        con.execute("INSERT INTO kb_events(event,entity_type,entity_id,actor,details) VALUES('updated','process',?,?,?)", (str(process_id), actor_of(request), json.dumps({"name": values["name"]})))
+        return dict(con.execute("SELECT * FROM processes WHERE id=?", (process_id,)).fetchone())
+
+
+COMPATIBILITY_STATUSES = ("Compatible", "Incompatible", "Blends with additives", "Conditional")
+
+
+class CompatibilityInput(BaseModel):
+    material_a: str = Field(min_length=1, max_length=12)
+    material_b: str = Field(min_length=1, max_length=12)
+    status: str = Field(min_length=1, max_length=40)
+    description: str = Field(min_length=10, max_length=2000)
+
+
+@app.post("/api/v1/compatibility", status_code=201)
+def upsert_compatibility(payload: CompatibilityInput, request: Request) -> dict[str, Any]:
+    """Record a source-backed compatibility rule; unknown pairs are never created implicitly."""
+    if payload.status not in COMPATIBILITY_STATUSES:
+        raise HTTPException(status_code=400, detail=f"status must be one of: {', '.join(COMPATIBILITY_STATUSES)}")
+    code_a, code_b = payload.material_a.strip().upper(), payload.material_b.strip().upper()
+    if code_a == code_b:
+        raise HTTPException(status_code=400, detail="material_a and material_b must be different materials")
+    with connect() as con:
+        ids = {r["code"]: r["id"] for r in con.execute("SELECT id,code FROM materials WHERE code IN (?,?)", (code_a, code_b))}
+        missing = [code for code in (code_a, code_b) if code not in ids]
+        if missing:
+            raise HTTPException(status_code=404, detail=f"Unknown material code(s): {', '.join(missing)}")
+        first, second = sorted((ids[code_a], ids[code_b]))  # canonical order, one row per pair
+        changed = bool(con.execute("SELECT 1 FROM compatibility WHERE material_a_id=? AND material_b_id=?", (first, second)).fetchone())
+        con.execute(
+            "INSERT INTO compatibility(material_a_id,material_b_id,compatibility_status,description) VALUES(?,?,?,?) "
+            "ON CONFLICT(material_a_id, material_b_id) DO UPDATE SET compatibility_status=excluded.compatibility_status, description=excluded.description",
+            (first, second, payload.status, payload.description),
+        )
+        con.execute(
+            "INSERT INTO kb_events(event,entity_type,entity_id,actor,details) VALUES(?,'compatibility',?,?,?)",
+            ("updated" if changed else "created", f"{first}:{second}", actor_of(request),
+             json.dumps({"material_a": code_a, "material_b": code_b, "status": payload.status})),
+        )
+        row = con.execute("""SELECT a.code material_a,b.code material_b,c.compatibility_status,c.description
+          FROM compatibility c JOIN materials a ON a.id=c.material_a_id JOIN materials b ON b.id=c.material_b_id
+          WHERE c.material_a_id=? AND c.material_b_id=?""", (first, second)).fetchone()
+        return dict(row)
 
 
 async def serve() -> None:
