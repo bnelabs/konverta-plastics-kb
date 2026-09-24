@@ -8,9 +8,11 @@
   "scripts": {
     "build": "tsc --project tsconfig.json",
     "typecheck": "tsc --noEmit",
-    "test:frontend": "node tests/frontend/smoke.test.js"
+    "test:frontend": "node tests/frontend/smoke.test.js",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "jsdom": "26.1.0",
     "typescript": "7.0.2"
   }

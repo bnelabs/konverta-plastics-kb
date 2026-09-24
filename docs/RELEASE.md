@@ -274,6 +274,48 @@ Caveats:
   35-day retention), which is a separate restore exercise.
 - `Recreate` means a short outage during both the deploy and the rollback.
 
+## 7d. Backup restore drill
+
+Backups from `scripts/backup-db.sh` are only useful if they restore.
+`scripts/restore-drill.sh` proves it on the host without ever opening the
+production database under `/data`:
+
+```sh
+scripts/restore-drill.sh                                   # newest snapshot in $BACKUP_DIR
+scripts/restore-drill.sh /srv/backups/plastics-kb/kb-<stamp>.sqlite3   # specific snapshot
+```
+
+It copies the newest `*.sqlite3` from `BACKUP_DIR` (default
+`/srv/backups/plastics-kb`) into `SCRATCH_DIR` (default a `mktemp -d` that is
+deleted on exit), runs `PRAGMA integrity_check` through python3's `sqlite3`
+module (the `sqlite3` CLI is not required on the host), prints row counts for
+the KB tables, and compares them with the source snapshot. It prints
+`RESULT: PASS` / `RESULT: FAIL` and exits 0/1 (2 = usage error). It reads only
+inside the backup directory and writes only inside the scratch directory;
+`tests/test_backup_drill.py` covers the pass, newest-selection, and
+corruption-fail paths. Run it after any change to `scripts/backup-db.sh` and
+periodically on the host so a broken snapshot format is caught before it is
+needed. A failing drill means the newest daily snapshot is unusable — fix the
+backup job and wait for the next snapshot rather than relying on the current
+one.
+
+## 7e. E2E visual gate
+
+`.github/workflows/e2e.yml` is a path-filtered Playwright job (push touching
+`app/**`, `tests/e2e/**`, `playwright.config.ts`, or `package*.json`). It
+installs Python and Node 20 dependencies, builds the frontend, starts
+`uvicorn app.main:app` against a throwaway `KB_DB_PATH`, waits on `/healthz`,
+then runs `npx playwright test` (Chromium only).
+
+`tests/e2e/smoke.spec.ts` holds two tests: desktop 1280×800 (h1, all four nav
+views, a material detail dialog with its `https://` source link, screenshot
+`test-results/desktop.png`) and mobile 390×844 (same flow in a small viewport,
+screenshot `test-results/mobile.png`). The spec seeds one sourced material via
+`POST /api/v1/materials` first because a fresh database has no source URLs at first run.
+Screenshots upload as the `playwright-test-results` artifact when the job
+fails, so this workflow is the visual gate that the jsdom smoke test cannot
+cover.
+
 ## 8. Failure modes
 
 | Condition | What the files do |

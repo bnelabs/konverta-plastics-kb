@@ -159,7 +159,7 @@ textarea:focus-visible,summary:focus-visible,[tabindex]:focus-visible,
 .topbar{
   position:sticky;top:0;z-index:60;
   display:flex;align-items:center;justify-content:space-between;gap:12px;
-  min-height:var(--topbar-h);margin:0 -16px;padding:6px 16px;
+  min-height:var(--topbar-h);margin:0 -16px;padding:calc(6px + env(safe-area-inset-top,0px)) 16px 6px;
   background:var(--paper);border-bottom:1px solid var(--line);
 }
 .crumb{display:flex;gap:8px;align-items:center;min-width:0;color:var(--muted);font-size:12px}
@@ -239,14 +239,14 @@ textarea:focus-visible,summary:focus-visible,[tabindex]:focus-visible,
 .section-title p{margin:4px 0 0;color:var(--muted);font-size:12px}
 .section-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
 .text-link{
-  display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0;
+  display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0;
   border:0;background:none;color:var(--green);
   font:600 12px 'DM Sans',sans-serif;text-decoration:none;cursor:pointer;
 }
 .text-link:hover{text-decoration:underline}
 .add-link{
   border:1px solid var(--line-strong);border-radius:9px;background:#fff;
-  min-height:40px;padding:8px 12px;color:var(--green);
+  min-height:44px;padding:8px 12px;color:var(--green);
   font:600 12px 'DM Sans',sans-serif;
 }
 .add-link:hover{background:var(--green2);text-decoration:none}
@@ -377,7 +377,7 @@ textarea:focus-visible,summary:focus-visible,[tabindex]:focus-visible,
 
 /* ------------------------------------------------------------ dialogs ----- */
 .detail-dialog,.editor-dialog{
-  width:min(680px,calc(100% - 24px));max-width:680px;max-height:88vh;
+  width:min(680px,calc(100% - 24px));max-width:680px;max-height:84vh;
   padding:0;border:0;border-radius:16px;overflow:hidden;
   background:#fff;color:var(--ink);
   box-shadow:0 25px 90px rgba(17,41,29,.28);
@@ -387,9 +387,9 @@ textarea:focus-visible,summary:focus-visible,[tabindex]:focus-visible,
   background:rgba(19,36,28,.55);
   backdrop-filter:blur(3px);
 }
-#detail-body{max-height:88vh;overflow:auto}
+#detail-body{max-height:84vh;overflow:auto}
 .detail-inner{padding:22px}
-.editor-dialog .detail-inner{max-height:88vh;overflow:auto}
+.editor-dialog .detail-inner{max-height:84vh;overflow:auto}
 .detail-dialog .close{
   position:absolute;top:12px;right:12px;z-index:2;float:none;margin:0;
   display:grid;place-items:center;width:44px;height:44px;
@@ -424,6 +424,9 @@ textarea:focus-visible,summary:focus-visible,[tabindex]:focus-visible,
 .form-grid{display:grid;grid-template-columns:1fr;gap:14px;margin-top:18px}
 .form-grid label{display:grid;gap:6px;color:var(--muted-strong);font-size:12px;font-weight:600}
 .form-grid label.wide{grid-column:1/-1}
+.form-grid .field-error{
+  color:var(--danger-ink);font-size:12px;font-weight:600;margin-top:2px;
+}
 .form-grid input,.form-grid textarea,.form-grid select{
   width:100%;padding:12px;border:1px solid var(--line-strong);border-radius:10px;
   background:#fff;color:var(--ink);font:400 16px/1.4 'DM Sans',sans-serif;
@@ -450,6 +453,19 @@ textarea:focus-visible,summary:focus-visible,[tabindex]:focus-visible,
   color:var(--muted);font-size:12px;
 }
 .form-actions .primary-button{align-self:stretch}
+@media (max-width:700px){
+  .editor-dialog .detail-inner{padding:22px 22px calc(22px + env(safe-area-inset-bottom,0px));}
+  .form-actions{
+    position:sticky;
+    bottom:0;
+    background:var(--card);
+    padding-top:14px;
+    margin-top:18px;
+    border-top:1px solid var(--line);
+    z-index:5;
+    backdrop-filter:blur(6px);
+  }
+}
 .primary-button{
   min-height:48px;padding:12px 18px;border:0;border-radius:10px;
   background:#176b50;color:#fff;font:600 14px 'DM Sans',sans-serif;cursor:pointer;
