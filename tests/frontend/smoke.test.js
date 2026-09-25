@@ -170,6 +170,8 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 30));
   await tick();
   check('editor dialog opens', editor.open === true);
 
+  form.querySelector('[name="code"]').value = 'TEST';
+  form.querySelector('[name="name"]').value = 'Test material';
   form.querySelector('[name="source_title"]').value = '';
   form.querySelector('[name="source_url"]').value = 'https://example.org/source';
   submit();

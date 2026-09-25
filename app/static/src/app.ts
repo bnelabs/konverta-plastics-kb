@@ -425,28 +425,34 @@ $<MaterialForm>('#material-form')!.addEventListener('submit', async (event) => {
   values.density_g_cm3 = values.density_g_cm3 ? Number(values.density_g_cm3) : null;
 
   let hasError = false;
+  let firstErrorMsg = 'Please fix the highlighted fields';
   if (!values.code || !(values.code as string).trim()) {
     setFieldError(form, 'code', 'Resin code is required');
+    if (!hasError) firstErrorMsg = 'Resin code is required';
     hasError = true;
   }
   if (!values.name || !(values.name as string).trim()) {
     setFieldError(form, 'name', 'Material name is required');
+    if (!hasError) firstErrorMsg = 'Material name is required';
     hasError = true;
   }
   if (!values.source_title || (values.source_title as string).trim().length < 2) {
     setFieldError(form, 'source_title', 'Source title is required for factual records');
+    if (!hasError) firstErrorMsg = 'Source title is required for factual records';
     hasError = true;
   }
   if (!values.source_url || !(values.source_url as string).trim().startsWith('https://')) {
     setFieldError(form, 'source_url', 'Source URL must start with https://');
+    if (!hasError) firstErrorMsg = 'Source URL must start with https://';
     hasError = true;
   }
   if (!values.review_status || !['draft','verified'].includes(values.review_status as string)) {
     setFieldError(form, 'review_status', 'Review status must be draft or verified');
+    if (!hasError) firstErrorMsg = 'Review status must be draft or verified';
     hasError = true;
   }
   if (hasError) {
-    toast('Please fix the highlighted fields');
+    toast(firstErrorMsg);
     // Focus first invalid control
     const firstInvalid = form.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('[aria-invalid="true"]');
     firstInvalid?.focus();
