@@ -27,7 +27,8 @@ class KnowledgeBaseApiTests(unittest.TestCase):
     MATERIAL_FIELDS = frozenset({
         "id", "code", "name", "common_uses", "melt_temp_c", "density_g_cm3",
         "toxicity_level", "recyclability", "notes", "source_title", "source_url",
-        "review_status",
+        "review_status", "glass_transition_temp_c", "additives_common",
+        "thermal_conductivity_w_m_k",
     })
     PROCESS_FIELDS = frozenset({
         "name", "description", "equipment_needed", "safety_precautions",
@@ -52,6 +53,9 @@ class KnowledgeBaseApiTests(unittest.TestCase):
             "source_title": "Test fixture source",
             "source_url": f"https://example.org/{code.lower()}",
             "review_status": review_status,
+            "glass_transition_temp_c": "",
+            "additives_common": "",
+            "thermal_conductivity_w_m_k": "",
         }
 
     def _create_material(self, review_status: str = "draft") -> dict:
@@ -213,6 +217,29 @@ class KnowledgeBaseApiTests(unittest.TestCase):
 
         # The page must load exactly the entry bundle the Dockerfile compiles.
         self.assertEqual(generated, ["/assets/dist/app.js"])
+
+    def test_new_schema_optional_fields_are_nullable_and_persisted(self):
+        # Create a material with empty optional fields
+        payload = self._material_payload("OPT1", review_status="draft")
+        payload["glass_transition_temp_c"] = ""
+        payload["additives_common"] = ""
+        payload["thermal_conductivity_w_m_k"] = ""
+        created = self.client.post("/api/v1/materials", json=payload)
+        self.assertEqual(created.status_code, 201)
+        data = created.json()
+        self.assertIn("glass_transition_temp_c", data)
+        self.assertIn("additives_common", data)
+        self.assertIn("thermal_conductivity_w_m_k", data)
+        # Update with values
+        payload["glass_transition_temp_c"] = "105 C"
+        payload["additives_common"] = "Stabilizers"
+        payload["thermal_conductivity_w_m_k"] = "0.19"
+        updated = self.client.put(f"/api/v1/materials/{data['code']}", json=payload)
+        self.assertEqual(updated.status_code, 200)
+        upd = updated.json()
+        self.assertEqual(upd["glass_transition_temp_c"], "105 C")
+        self.assertEqual(upd["additives_common"], "Stabilizers")
+        self.assertEqual(upd["thermal_conductivity_w_m_k"], "0.19")
 
 
 if __name__ == "__main__":
