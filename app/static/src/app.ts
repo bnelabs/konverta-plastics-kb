@@ -93,6 +93,8 @@ const labels: Record<string, readonly [string, string, string]> = {
   projects: ['Projects', 'Ideas for another life.', 'Browse practical concepts built around recovered materials.'],
   needs_review: ['Review Queue', 'Factual curation.', 'Materials needing source verification and safety review.'],
   contamination: ['Contamination', 'What can go wrong.', 'Common contaminants, impact on recycling and safety notes.'],
+  compatibility: ['Compatibility', 'Blend guidance.', 'Recorded polymer compatibility rules and unknown pairs.'],
+  compare: ['Compare', 'Side-by-side', 'Compare 2–3 materials on key schema fields, processes and projects.'],
 };
 let view = 'overview';
 let currentMaterialCode: string | null = null;
@@ -230,7 +232,7 @@ async function render(): Promise<void> {
       const emptyMaterials = query
         ? `<div class="empty"><h3>No materials found</h3><p>We couldn’t find any materials matching “${esc(query)}”. Try a different resin code, material name, or common use.</p><button class="text-link" data-reset-search>Clear search and browse all</button></div>`
         : `<div class="empty"><h3>No materials recorded yet</h3><p>The library is empty. Add the first material to get started.</p><button class="text-link add-link" data-add-material><span aria-hidden="true">＋</span> Add material</button></div>`;
-      html = `<div class="section-title"><div><h2>${view === 'overview' ? 'Explore materials' : 'Material directory'}</h2><p>${matches.length} polymer ${matches.length === 1 ? 'profile' : 'profiles'} in the library</p></div><div class="section-actions">${view === 'overview' ? '<a class="text-link" data-goto="materials">View all materials <span aria-hidden="true">→</span></a>' : ''}<button class="text-link add-link" data-add-material><span aria-hidden="true">＋</span> Add material</button></div></div><div class="material-grid">${shown.map(materialCard).join('') || emptyMaterials}</div>`;
+      html = `<div class="section-title"><div><h2>${view === 'overview' ? 'Explore materials' : 'Material directory'}</h2><p>${matches.length} polymer ${matches.length === 1 ? 'profile' : 'profiles'} in the library</p></div><div class="section-actions">${view === 'overview' ? '<a class="text-link" data-goto="materials">View all materials <span aria-hidden="true">→</span></a>' : ''}<button class="text-link" id="export-materials">Export CSV</button><button class="text-link add-link" data-add-material><span aria-hidden="true">＋</span> Add material</button></div></div><div class="material-grid">${shown.map(materialCard).join('') || emptyMaterials}</div>`;
     } else if (view === 'processes') {
       const shown = data.processes.filter((item) => !query || JSON.stringify(item).toLowerCase().includes(query));
       const emptyProcesses = query
@@ -257,6 +259,23 @@ async function render(): Promise<void> {
         const sev = severityFor(r);
         return `<article class="contamination-card" data-sev="${sev}"><div class="card-head"><button class="code-pill" data-code="${esc(r.material_code)}">${esc(r.material_code)}</button><span class="contaminant">${esc(r.contaminant_name)}</span><span class="severity-badge ${sev}">${sev.toUpperCase()}</span></div><h3>${esc(r.material_name)}</h3><details><summary>Impact & safety</summary><p><b>Impact:</b> ${esc(r.impact_description)}</p><div class="safety"><b>Safety:</b> ${esc(r.safety_notes)}</div><div class="source"><small>Source: <a href="${esc(r.source_url)}" target="_blank" rel="noopener">${esc(r.source_title)} ↗</a> · ${esc(r.review_status || 'needs review')}</small></div></details></article>`;
       }).join('') || emptyContamination}</div>`;
+    } else if (view === 'compatibility') {
+      const materials = data.materials;
+      const codes = materials.map(m => m.code);
+      const matrixRows = [];
+      for (let i = 0; i < codes.length; i++) {
+        for (let j = i + 1; j < codes.length; j++) {
+          matrixRows.push({a: codes[i], b: codes[j]});
+        }
+      }
+      const rowsHtml = matrixRows.map(async ({a,b}) => {
+        // This is synchronous placeholder; actual check will be async via fetch in render loop
+        return '';
+      });
+      const warning = `<div class="empty"><h3>Compatibility matrix</h3><p>Select two materials to check recorded compatibility. Unknown pairs are explicitly shown as Unknown – do not infer.</p></div>`;
+      html = `<div class="section-title"><div><h2>Compatibility matrix</h2><p>${materials.length} materials</p></div></div><div class="compatibility-search"><input id="compat-a" placeholder="Material A code e.g. HDPE"><input id="compat-b" placeholder="Material B code e.g. PP"><button id="compat-check" class="primary-button">Check</button></div><div id="compat-result"></div>`;
+    } else if (view === 'compare') {
+      html = `<div class="section-title"><div><h2>Compare materials</h2><p>Side-by-side comparison of schema fields, processes and projects</p></div></div><div class="compare-search"><input id="compare-a" placeholder="Material A code e.g. HDPE"><input id="compare-b" placeholder="Material B code e.g. PP"><input id="compare-c" placeholder="Material C optional"><button id="compare-btn" class="primary-button">Compare</button></div><div id="compare-result"></div>`;
     } else {
       const shown = data.projects.filter((item) => !query || JSON.stringify(item).toLowerCase().includes(query));
       const emptyProjects = query
@@ -265,6 +284,21 @@ async function render(): Promise<void> {
       html = `<div class="section-title"><div><h2>Project ideas</h2><p>Concepts to validate and develop with the right expertise</p></div></div><div class="project-grid">${shown.map((item) => `<article class="project-card" data-project="${item.id}" role="button" tabindex="0"><span class="badge">${esc(item.difficulty || 'Concept')}</span><h3>${esc(item.title)}</h3><p>${esc(item.description || '')}</p><div class="project-meta">${esc(item.material_code || 'Material not linked')} · ${esc(item.process_name || 'Process not linked')}</div></article>`).join('') || emptyProjects}</div>`;
     }
     $('#content')!.innerHTML = html;
+    const exportBtn = $('#export-materials') as HTMLButtonElement | null;
+    if (exportBtn) {
+      exportBtn.addEventListener('click', () => {
+        const rows = data.materials;
+        const fields = ['code','name','common_uses','melt_temp_c','density_g_cm3','toxicity_level','recyclability','notes','glass_transition_temp_c','additives_common','thermal_conductivity_w_m_k','source_title','source_url','review_status'];
+        const csv = [fields.join(','), ...rows.map(r => fields.map(f => `"${String((r as any)[f] ?? '').replace(/"/g,'""')}"`).join(','))].join('\n');
+        const blob = new Blob([csv], {type:'text/csv'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'materials_export.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    }
     document.querySelectorAll<HTMLElement>('[data-code]').forEach((card) => card.addEventListener('click', () => showMaterial(card.dataset.code!)));
     document.querySelectorAll<HTMLElement>('[data-goto]').forEach((link) => link.addEventListener('click', () => setView(link.dataset.goto!)));
     document.querySelectorAll<HTMLElement>('.chip').forEach((chip) => {
@@ -277,6 +311,46 @@ async function render(): Promise<void> {
         document.querySelectorAll<HTMLElement>('.chip').forEach(c => c.classList.toggle('active', c === chip));
       });
     });
+    const compatBtn = $('#compat-check') as HTMLButtonElement | null;
+    if (compatBtn) {
+      compatBtn.addEventListener('click', async () => {
+        const a = ($<HTMLInputElement>('#compat-a')!).value.trim().toUpperCase();
+        const b = ($<HTMLInputElement>('#compat-b')!).value.trim().toUpperCase();
+        const resultDiv = $('#compat-result')!;
+        if (!a || !b) { resultDiv.innerHTML = '<div class="empty">Enter both material codes.</div>'; return; }
+        try {
+          const res = await fetch(`/api/v1/compatibility?material_a=${encodeURIComponent(a)}&material_b=${encodeURIComponent(b)}`);
+          if (!res.ok) throw new Error('No rule recorded');
+          const data = await res.json();
+          const status = data.compatibility_status || 'Unknown';
+          const isUnknown = status === 'Unknown';
+          resultDiv.innerHTML = `<div class="compat-result"><h3>${esc(a)} ↔ ${esc(b)}</h3><p><b>Status:</b> <span class="severity-badge ${isUnknown ? 'low' : 'high'}">${esc(status)}</span></p><p>${esc(data.description || 'No description recorded.')}</p>${isUnknown ? '<p class="lead">Unknown – do not infer compatibility. Verify with reliable technical sources and testing.</p>' : ''}</div>`;
+        } catch (e) {
+          resultDiv.innerHTML = `<div class="compat-result"><h3>${esc(a)} ↔ ${esc(b)}</h3><p><b>Status:</b> <span class="severity-badge low">UNKNOWN</span></p><p>No recorded compatibility rule. Treat as unknown and do not infer.</p></div>`;
+        }
+      });
+    }
+    const compareBtn = $('#compare-btn') as HTMLButtonElement | null;
+    if (compareBtn) {
+      compareBtn.addEventListener('click', async () => {
+        const a = ($<HTMLInputElement>('#compare-a')!).value.trim().toUpperCase();
+        const b = ($<HTMLInputElement>('#compare-b')!).value.trim().toUpperCase();
+        const c = ($<HTMLInputElement>('#compare-c')!).value.trim().toUpperCase();
+        const resultDiv = $('#compare-result')!;
+        const codes = [a,b,c].filter(Boolean);
+        if (codes.length < 2) { resultDiv.innerHTML = '<div class="empty">Enter at least two material codes.</div>'; return; }
+        try {
+          const details = await Promise.all(codes.map(code => get<MaterialDetail>(`/api/v1/materials/${encodeURIComponent(code)}`)));
+          const fields = ['code','name','common_uses','melt_temp_c','density_g_cm3','toxicity_level','recyclability','glass_transition_temp_c','additives_common','thermal_conductivity_w_m_k','source_title','review_status'];
+          const rows = fields.map(f => ({field:f, values: details.map(d => esc((d as any)[f] ?? ''))}));
+          const header = `<tr>${['Field', ...codes].join('')}</tr>`;
+          const body = rows.map(r => `<tr><td><b>${esc(r.field)}</b></td>${r.values.map(v => `<td>${v || '<i>—</i>'}</td>`).join('')}</tr>`).join('');
+          resultDiv.innerHTML = `<div class="compare-result"><h3>Comparison</h3><div style="overflow:auto"><table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;min-width:600px">${header}${body}</table></div></div>`;
+        } catch (e) {
+          resultDiv.innerHTML = '<div class="empty">Could not load materials. Verify codes.</div>';
+        }
+      });
+    }
     document.querySelectorAll<HTMLElement>('[data-reset-search]').forEach((button) => button.addEventListener('click', () => {
       const searchInput = $<HTMLInputElement>('#search')!;
       searchInput.value = '';
@@ -408,7 +482,7 @@ document.querySelectorAll<HTMLElement>('.nav-item').forEach((button) => button.a
 $<HTMLInputElement>('#search')!.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(render, 160); });
 $('#refresh')!.addEventListener('click', render);
 // deep link handling
-const VALID_VIEWS = ['overview','materials','processes','projects','contamination','needs_review'];
+const VALID_VIEWS = ['overview','materials','processes','projects','contamination','needs_review','compatibility','compare'];
 function applyHash(): void {
   const params = new URLSearchParams(location.hash.slice(1));
   const viewParam = params.get('view');

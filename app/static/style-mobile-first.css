@@ -644,6 +644,9 @@ footer a:hover{text-decoration:underline}
 .contamination-card details{margin-top:8px}
 .contamination-card summary{cursor:pointer;font-weight:600;font-size:13px;color:var(--ink);list-style:none}
 .contamination-card summary::-webkit-details-marker{display:none}
+.compatibility-search{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 16px}
+.compatibility-search input{flex:1 1 160px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px}
+.compat-result{border:1px solid var(--border);padding:16px;border-radius:12px;background:var(--surface)}
 
 /* -------------------------------------------------------- preferences ----- */
 @media (prefers-reduced-motion:reduce){
