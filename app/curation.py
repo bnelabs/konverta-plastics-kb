@@ -37,6 +37,9 @@ MATERIAL_COLUMNS = (
     "toxicity_level",
     "recyclability",
     "notes",
+    "glass_transition_temp_c",
+    "additives_common",
+    "thermal_conductivity_w_m_k",
     "source_title",
     "source_url",
     "review_status",
@@ -49,6 +52,9 @@ TEXT_DEFAULTS = {
     "toxicity_level": "Not rated",
     "recyclability": "Not recorded",
     "notes": "",
+    "glass_transition_temp_c": "",
+    "additives_common": "",
+    "thermal_conductivity_w_m_k": "",
 }
 
 # A CSV import may omit optional columns, but never the source columns.

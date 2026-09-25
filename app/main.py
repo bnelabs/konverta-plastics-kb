@@ -95,7 +95,14 @@ def ensure_schema() -> None:
         CREATE INDEX IF NOT EXISTS idx_contamination_contaminant ON contamination(contaminant_name);
         """)
         material_columns = {r[1] for r in con.execute("PRAGMA table_info(materials)")}
-        for column, definition in (("source_title", "TEXT"), ("source_url", "TEXT"), ("review_status", "TEXT NOT NULL DEFAULT 'needs_review'")):
+        for column, definition in (
+            ("source_title", "TEXT"),
+            ("source_url", "TEXT"),
+            ("review_status", "TEXT NOT NULL DEFAULT 'needs_review'"),
+            ("glass_transition_temp_c", "TEXT"),
+            ("additives_common", "TEXT"),
+            ("thermal_conductivity_w_m_k", "TEXT"),
+        ):
             if column not in material_columns:
                 con.execute(f"ALTER TABLE materials ADD COLUMN {column} {definition}")
         # Populate only a newly initialized database. Existing rows are preserved.
@@ -361,6 +368,9 @@ class MaterialInput(BaseModel):
     toxicity_level: str = Field(default="Not rated", max_length=40)
     recyclability: str = Field(default="Not recorded", max_length=120)
     notes: str = Field(default="", max_length=3000)
+    glass_transition_temp_c: str = Field(default="", max_length=100)
+    additives_common: str = Field(default="", max_length=1000)
+    thermal_conductivity_w_m_k: str = Field(default="", max_length=100)
     source_title: str = Field(min_length=2, max_length=240)
     source_url: str = Field(min_length=10, max_length=2048)
     review_status: str = Field(default="draft", pattern="^(draft|verified)$")
